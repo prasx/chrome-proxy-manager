@@ -53,7 +53,7 @@ function generatePAC(proxyList, directList, proxies, activeProxy) {
     if (pattern.startsWith('.')) pattern = pattern.substring(1);
     
     if (pattern.startsWith('*.')) {
-      // *.ru -> проверяем что заканчивается на .ru
+      // *.domain -> проверяем что заканчивается на .domain
       const domain = pattern.substring(2); // убираем *.
       pacScript += `  if (host.endsWith(".${domain}") || host === "${domain}") return "DIRECT";\n`;
     } else if (pattern.includes('*')) {
@@ -73,7 +73,7 @@ function generatePAC(proxyList, directList, proxies, activeProxy) {
     if (pattern.startsWith('.')) pattern = pattern.substring(1);
     
     if (pattern.startsWith('*.')) {
-      // *.ru -> проверяем что заканчивается на .ru
+      // *.domain -> проверяем что заканчивается на .domain
       const domain = pattern.substring(2); // убираем *.
       pacScript += `  if (host.endsWith(".${domain}") || host === "${domain}") return "${proxyString}";\n`;
     } else if (pattern.includes('*')) {
