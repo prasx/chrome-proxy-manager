@@ -1,1 +1,2 @@
-proxy-manager.zip
+*.zip
+.vscode

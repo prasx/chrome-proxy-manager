@@ -12,6 +12,7 @@
     <!-- Вкладки -->
     <div class="tabs">
       <button class="tab-btn active" data-tab="settings">⚙️ Настройки</button>
+      <button class="tab-btn" data-tab="stats">📊 Статистика</button>
       <button class="tab-btn" data-tab="logs">📋 Логи</button>
       <div class="tabs-actions">
         <button id="exportConfig" class="icon-btn" title="Экспорт конфигурации">💾</button>
@@ -68,7 +69,13 @@
 
         <!-- Блок анализа связанных доменов -->
         <div id="relatedDomainsSection" class="related-domains-section" style="display: none;">
-          <h4>🔗 Связанные домены на странице</h4>
+          <div class="related-domains-header">
+            <h4>🔗 Связанные домены на странице</h4>
+            <label class="auto-add-checkbox">
+              <input type="checkbox" id="autoAddRelated">
+              <span>Автодобавление</span>
+            </label>
+          </div>
           <div id="relatedDomainsList" class="related-domains-list">
             <!-- Список связанных доменов -->
           </div>
@@ -129,6 +136,49 @@
     </div>
     </div>
     <!-- Конец вкладки Настройки -->
+
+    <!-- Вкладка Статистика -->
+    <div id="stats" class="tab-content">
+      <div class="stats-section">
+        <h3>📊 Статистика использования</h3>
+        
+        <!-- Счётчики -->
+        <div class="stats-counters">
+          <div class="stat-card proxy">
+            <div class="stat-icon">🔒</div>
+            <div class="stat-value" id="proxyCount">0</div>
+            <div class="stat-label">Через прокси</div>
+          </div>
+          <div class="stat-card direct">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="directCount">0</div>
+            <div class="stat-label">Напрямую</div>
+          </div>
+          <div class="stat-card total">
+            <div class="stat-icon">📈</div>
+            <div class="stat-value" id="totalCount">0</div>
+            <div class="stat-label">Всего запросов</div>
+          </div>
+        </div>
+
+        <!-- График активности -->
+        <div class="activity-chart">
+          <h4>График активности (последний час)</h4>
+          <canvas id="activityChart" width="500" height="200"></canvas>
+        </div>
+
+        <!-- Топ доменов -->
+        <div class="top-domains">
+          <h4>Топ-10 доменов</h4>
+          <div id="topDomainsList" class="top-domains-list">
+            <!-- Список топ доменов -->
+          </div>
+        </div>
+
+        <button id="resetStats" class="reset-stats-btn">🗑️ Сбросить статистику</button>
+      </div>
+    </div>
+    <!-- Конец вкладки Статистика -->
 
     <!-- Вкладка Логи -->
     <div id="logs" class="tab-content">

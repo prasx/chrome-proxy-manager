@@ -6,6 +6,7 @@ const proxyTestResult = document.getElementById('proxyTestResult');
 const analyzeCurrentPageBtn = document.getElementById('analyzeCurrentPage');
 const relatedDomainsSection = document.getElementById('relatedDomainsSection');
 const relatedDomainsList = document.getElementById('relatedDomainsList');
+const autoAddRelatedCheckbox = document.getElementById('autoAddRelated');
 
 // Proxy list
 const addToProxyListBtn = document.getElementById('addToProxyList');
@@ -47,6 +48,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     
     if (tabName === 'logs') {
       loadLogs();
+    } else if (tabName === 'stats') {
+      loadStats();
     }
   });
 });
@@ -66,15 +69,21 @@ document.querySelectorAll('.subtab-btn').forEach(btn => {
 
 // Загрузка данных
 function loadData() {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated'], (data) => {
     const proxyList = data.proxyList || [];
     const directList = data.directList || [];
     const proxies = data.proxies || [];
     const activeProxyId = data.activeProxyId;
+    const autoAddRelated = data.autoAddRelated || false;
     
     renderProxies(proxies, activeProxyId);
     renderSites(proxyList, proxyListSites, 'proxyList');
     renderSites(directList, directListSites, 'directList');
+    
+    // Устанавливаем состояние чекбокса
+    if (autoAddRelatedCheckbox) {
+      autoAddRelatedCheckbox.checked = autoAddRelated;
+    }
   });
 }
 
@@ -613,6 +622,160 @@ clearLogsBtn.addEventListener('click', () => {
 
 // Инициализация
 loadData();
+
+// Обработчик чекбокса автодобавления
+if (autoAddRelatedCheckbox) {
+  autoAddRelatedCheckbox.addEventListener('change', () => {
+    chrome.storage.local.set({ autoAddRelated: autoAddRelatedCheckbox.checked });
+  });
+}
+
+// Загрузка статистики
+function loadStats() {
+  chrome.runtime.sendMessage({ action: 'getStats' }, (response) => {
+    if (!response || !response.stats) return;
+    
+    const stats = response.stats;
+    
+    // Обновляем счётчики
+    document.getElementById('proxyCount').textContent = stats.proxy || 0;
+    document.getElementById('directCount').textContent = stats.direct || 0;
+    document.getElementById('totalCount').textContent = (stats.proxy || 0) + (stats.direct || 0);
+    
+    // Рисуем график
+    drawActivityChart(stats.hourly || []);
+    
+    // Показываем топ доменов
+    showTopDomains(stats.domains || {});
+  });
+}
+
+// Рисование графика активности
+function drawActivityChart(hourlyData) {
+  const canvas = document.getElementById('activityChart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  // Очищаем canvas
+  ctx.clearRect(0, 0, width, height);
+  
+  if (hourlyData.length === 0) {
+    ctx.fillStyle = '#999';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Нет данных', width / 2, height / 2);
+    return;
+  }
+  
+  // Находим максимальное значение
+  const maxValue = Math.max(...hourlyData.map(d => d.proxy + d.direct), 1);
+  
+  // Параметры графика
+  const padding = 40;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+  const barWidth = chartWidth / hourlyData.length;
+  
+  // Рисуем оси
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, height - padding);
+  ctx.lineTo(width - padding, height - padding);
+  ctx.stroke();
+  
+  // Рисуем столбцы
+  hourlyData.forEach((data, index) => {
+    const x = padding + index * barWidth;
+    const proxyHeight = (data.proxy / maxValue) * chartHeight;
+    const directHeight = (data.direct / maxValue) * chartHeight;
+    
+    // Столбец для direct (снизу)
+    ctx.fillStyle = '#1a73e8';
+    ctx.fillRect(x + 1, height - padding - directHeight, barWidth - 2, directHeight);
+    
+    // Столбец для proxy (сверху)
+    ctx.fillStyle = '#34a853';
+    ctx.fillRect(x + 1, height - padding - directHeight - proxyHeight, barWidth - 2, proxyHeight);
+  });
+  
+  // Подписи
+  ctx.fillStyle = '#666';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('0', 5, height - padding + 5);
+  ctx.fillText(maxValue.toString(), 5, padding + 5);
+  
+  // Легенда
+  ctx.fillStyle = '#34a853';
+  ctx.fillRect(width - 150, 10, 15, 15);
+  ctx.fillStyle = '#333';
+  ctx.fillText('Прокси', width - 130, 22);
+  
+  ctx.fillStyle = '#1a73e8';
+  ctx.fillRect(width - 150, 30, 15, 15);
+  ctx.fillStyle = '#333';
+  ctx.fillText('Напрямую', width - 130, 42);
+}
+
+// Показ топ доменов
+function showTopDomains(domains) {
+  const topDomainsList = document.getElementById('topDomainsList');
+  if (!topDomainsList) return;
+  
+  // Сортируем домены по общему количеству запросов
+  const sortedDomains = Object.entries(domains)
+    .map(([domain, counts]) => ({
+      domain,
+      total: counts.proxy + counts.direct,
+      proxy: counts.proxy,
+      direct: counts.direct
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+  
+  if (sortedDomains.length === 0) {
+    topDomainsList.innerHTML = '<div class="empty-state-small">Нет данных</div>';
+    return;
+  }
+  
+  topDomainsList.innerHTML = '';
+  sortedDomains.forEach((item, index) => {
+    const div = document.createElement('div');
+    div.className = 'top-domain-item';
+    
+    const proxyPercent = Math.round((item.proxy / item.total) * 100);
+    
+    div.innerHTML = `
+      <div class="top-domain-rank">${index + 1}</div>
+      <div class="top-domain-info">
+        <div class="top-domain-name">${item.domain}</div>
+        <div class="top-domain-bar">
+          <div class="top-domain-bar-proxy" style="width: ${proxyPercent}%"></div>
+        </div>
+      </div>
+      <div class="top-domain-count">${item.total}</div>
+    `;
+    
+    topDomainsList.appendChild(div);
+  });
+}
+
+// Сброс статистики
+const resetStatsBtn = document.getElementById('resetStats');
+if (resetStatsBtn) {
+  resetStatsBtn.addEventListener('click', () => {
+    if (confirm('Сбросить всю статистику?')) {
+      chrome.runtime.sendMessage({ action: 'resetStats' }, () => {
+        loadStats();
+      });
+    }
+  });
+}
 
 // Анализ текущей страницы
 analyzeCurrentPageBtn.addEventListener('click', () => {

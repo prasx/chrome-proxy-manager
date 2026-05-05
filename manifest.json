@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Proxy Manager",
-  "version": "1.0.0",
+  "version": "0.3.3",
   "description": "Управление маршрутизацией трафика через локальный Xray proxy",
   "permissions": [
     "proxy",
     "storage",
-    "webRequest"
+    "webRequest",
+    "contextMenus",
+    "tabs",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"

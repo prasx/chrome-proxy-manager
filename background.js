@@ -17,7 +17,160 @@ chrome.runtime.onInstalled.addListener(() => {
   
   // Запускаем автоочистку логов
   startLogCleanup();
+  
+  // Создаём контекстное меню
+  createContextMenu();
 });
+
+// Создание контекстного меню
+function createContextMenu() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'addToProxyList',
+      title: '🔒 Добавить в список прокси',
+      contexts: ['page', 'link']
+    });
+    
+    chrome.contextMenus.create({
+      id: 'addToDirectList',
+      title: '✅ Добавить в список напрямую',
+      contexts: ['page', 'link']
+    });
+    
+    chrome.contextMenus.create({
+      id: 'separator1',
+      type: 'separator',
+      contexts: ['page', 'link']
+    });
+    
+    chrome.contextMenus.create({
+      id: 'analyzeCurrentPage',
+      title: '🔍 Анализ связанных доменов',
+      contexts: ['page']
+    });
+    
+    chrome.contextMenus.create({
+      id: 'separator2',
+      type: 'separator',
+      contexts: ['page', 'link']
+    });
+    
+    chrome.contextMenus.create({
+      id: 'removeFromLists',
+      title: '🗑️ Удалить из всех списков',
+      contexts: ['page', 'link']
+    });
+  });
+}
+
+// Обработчик контекстного меню
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  let domain = '';
+  
+  // Получаем домен из ссылки или текущей страницы
+  if (info.linkUrl) {
+    domain = new URL(info.linkUrl).hostname;
+  } else if (info.pageUrl) {
+    domain = new URL(info.pageUrl).hostname;
+  }
+  
+  if (!domain) return;
+  
+  chrome.storage.local.get(['proxyList', 'directList', 'autoAddRelated'], (data) => {
+    let proxyList = data.proxyList || [];
+    let directList = data.directList || [];
+    const autoAddRelated = data.autoAddRelated || false;
+    
+    switch (info.menuItemId) {
+      case 'addToProxyList':
+        if (!proxyList.find(s => s.value === domain)) {
+          proxyList.push({ id: Date.now(), value: domain, enabled: true });
+          chrome.storage.local.set({ proxyList }, () => {
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'logo.png',
+              title: 'Добавлено в прокси',
+              message: `${domain} добавлен в список прокси`
+            });
+            
+            // Автодобавление связанных доменов
+            if (autoAddRelated && tab) {
+              addRelatedDomains(tab.id, 'proxyList');
+            }
+          });
+        }
+        break;
+        
+      case 'addToDirectList':
+        if (!directList.find(s => s.value === domain)) {
+          directList.push({ id: Date.now(), value: domain, enabled: true });
+          chrome.storage.local.set({ directList }, () => {
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'logo.png',
+              title: 'Добавлено в напрямую',
+              message: `${domain} добавлен в список напрямую`
+            });
+            
+            // Автодобавление связанных доменов
+            if (autoAddRelated && tab) {
+              addRelatedDomains(tab.id, 'directList');
+            }
+          });
+        }
+        break;
+        
+      case 'analyzeCurrentPage':
+        if (tab) {
+          // Открываем popup с анализом
+          chrome.action.openPopup();
+        }
+        break;
+        
+      case 'removeFromLists':
+        proxyList = proxyList.filter(s => s.value !== domain);
+        directList = directList.filter(s => s.value !== domain);
+        chrome.storage.local.set({ proxyList, directList }, () => {
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'logo.png',
+            title: 'Удалено из списков',
+            message: `${domain} удалён из всех списков`
+          });
+        });
+        break;
+    }
+  });
+});
+
+// Автодобавление связанных доменов
+function addRelatedDomains(tabId, listKey) {
+  const domains = tabDomains.get(tabId);
+  if (!domains || domains.size === 0) return;
+  
+  chrome.storage.local.get([listKey], (data) => {
+    let list = data[listKey] || [];
+    let addedCount = 0;
+    
+    domains.forEach(domain => {
+      if (!list.find(s => s.value === domain)) {
+        list.push({ id: Date.now() + Math.random(), value: domain, enabled: true });
+        addedCount++;
+      }
+    });
+    
+    if (addedCount > 0) {
+      chrome.storage.local.set({ [listKey]: list }, () => {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'logo.png',
+          title: 'Связанные домены добавлены',
+          message: `Автоматически добавлено ${addedCount} связанных доменов`
+        });
+      });
+    }
+  });
+}
 
 // Автоматическая очистка логов каждые 3 часа
 function startLogCleanup() {
@@ -170,6 +323,82 @@ function logRoute(type, action, details) {
 // Отслеживание связанных доменов для каждой вкладки
 const tabDomains = new Map(); // tabId -> Set of domains
 
+// Статистика активности
+const activityStats = {
+  proxy: 0,
+  direct: 0,
+  hourly: [], // Массив для графика по минутам
+  domains: {} // Счётчик по доменам
+};
+
+// Инициализация статистики
+function initStats() {
+  chrome.storage.local.get(['activityStats'], (data) => {
+    if (data.activityStats) {
+      Object.assign(activityStats, data.activityStats);
+    }
+    // Инициализируем массив для последнего часа (60 минут)
+    if (!activityStats.hourly || activityStats.hourly.length === 0) {
+      activityStats.hourly = Array(60).fill(0).map(() => ({ proxy: 0, direct: 0, timestamp: Date.now() }));
+    }
+  });
+}
+
+// Сохранение статистики
+function saveStats() {
+  chrome.storage.local.set({ activityStats });
+}
+
+// Обновление статистики
+function updateStats(routeType, domain) {
+  if (routeType === 'PROXY') {
+    activityStats.proxy++;
+  } else {
+    activityStats.direct++;
+  }
+  
+  // Обновляем счётчик по доменам
+  if (!activityStats.domains[domain]) {
+    activityStats.domains[domain] = { proxy: 0, direct: 0 };
+  }
+  if (routeType === 'PROXY') {
+    activityStats.domains[domain].proxy++;
+  } else {
+    activityStats.domains[domain].direct++;
+  }
+  
+  // Обновляем данные для графика (текущая минута)
+  const now = Date.now();
+  const currentMinute = Math.floor(now / 60000);
+  const lastEntry = activityStats.hourly[activityStats.hourly.length - 1];
+  const lastMinute = Math.floor(lastEntry.timestamp / 60000);
+  
+  if (currentMinute === lastMinute) {
+    // Та же минута - обновляем
+    if (routeType === 'PROXY') {
+      lastEntry.proxy++;
+    } else {
+      lastEntry.direct++;
+    }
+  } else {
+    // Новая минута - добавляем запись и удаляем старую
+    activityStats.hourly.push({
+      proxy: routeType === 'PROXY' ? 1 : 0,
+      direct: routeType === 'DIRECT' ? 1 : 0,
+      timestamp: now
+    });
+    
+    // Оставляем только последние 60 минут
+    if (activityStats.hourly.length > 60) {
+      activityStats.hourly.shift();
+    }
+  }
+  
+  saveStats();
+}
+
+initStats();
+
 // Перехват запросов для логирования и анализа доменов
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
@@ -278,6 +507,7 @@ chrome.webRequest.onBeforeRequest.addListener(
           // Логируем только если есть совпадение
           if (matchedSite) {
             logRoute('REQUEST', routeType, `${host} -> ${proxyInfo} (matched: ${matchedSite})`);
+            updateStats(routeType, host);
           }
         });
       }
@@ -323,5 +553,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     });
     return true; // Асинхронный ответ
+  }
+  
+  if (request.action === 'getStats') {
+    sendResponse({ stats: activityStats });
+    return true;
+  }
+  
+  if (request.action === 'resetStats') {
+    activityStats.proxy = 0;
+    activityStats.direct = 0;
+    activityStats.domains = {};
+    activityStats.hourly = Array(60).fill(0).map(() => ({ proxy: 0, direct: 0, timestamp: Date.now() }));
+    saveStats();
+    sendResponse({ success: true });
+    return true;
   }
 });
