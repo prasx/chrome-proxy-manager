@@ -10,24 +10,15 @@ const autoAddRelatedCheckbox = document.getElementById('autoAddRelated');
 
 // Proxy list
 const addToProxyListBtn = document.getElementById('addToProxyList');
+const proxyListType = document.getElementById('proxyListType');
 const proxyListValue = document.getElementById('proxyListValue');
 const proxyListSites = document.getElementById('proxyListSites');
-const clearProxyListBtn = document.getElementById('clearProxyList');
-const exportProxyListBtn = document.getElementById('exportProxyList');
-const importProxyListBtn = document.getElementById('importProxyList');
-const proxyListUrl = document.getElementById('proxyListUrl');
-const importProxyListFromUrlBtn = document.getElementById('importProxyListFromUrl');
-const proxyImportStatus = document.getElementById('proxyImportStatus');
 
 // Direct list
 const addToDirectListBtn = document.getElementById('addToDirectList');
+const directListType = document.getElementById('directListType');
 const directListValue = document.getElementById('directListValue');
 const directListSites = document.getElementById('directListSites');
-const clearDirectListBtn = document.getElementById('clearDirectList');
-const exportDirectListBtn = document.getElementById('exportDirectList');
-const directListUrl = document.getElementById('directListUrl');
-const importDirectListFromUrlBtn = document.getElementById('importDirectListFromUrl');
-const directImportStatus = document.getElementById('directImportStatus');
 
 const importFile = document.getElementById('importFile');
 const importConfigFile = document.getElementById('importConfigFile');
@@ -99,25 +90,20 @@ function renderProxies(proxies, activeProxyId) {
     const item = document.createElement('div');
     item.className = `proxy-item ${proxy.id === activeProxyId ? 'active' : ''}`;
     item.innerHTML = `
-      <div class="proxy-radio">
-        <input type="radio" name="activeProxy" value="${proxy.id}" ${proxy.id === activeProxyId ? 'checked' : ''}>
+      <div class="proxy-header-row">
+        <input type="radio" name="activeProxy" value="${proxy.id}" ${proxy.id === activeProxyId ? 'checked' : ''} class="proxy-radio-input">
+        <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxy.id}" placeholder="Название прокси">
+        <button class="delete-btn-small" data-id="${proxy.id}" title="Удалить">✕</button>
       </div>
-      <div class="proxy-info">
-        <input type="text" class="proxy-name" value="${proxy.name}" data-id="${proxy.id}" placeholder="Название">
-        <div class="proxy-details">
-          <input type="text" class="proxy-host" value="${proxy.host}" data-id="${proxy.id}" placeholder="127.0.0.1">
-          <input type="number" class="proxy-port" value="${proxy.port}" data-id="${proxy.id}" placeholder="1080">
-          <select class="proxy-type" data-id="${proxy.id}">
-            <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
-            <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
-            <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
-            <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
-          </select>
-        </div>
-      </div>
-      <div class="proxy-actions">
-        <div class="toggle-switch ${proxy.enabled ? 'active' : ''}" data-id="${proxy.id}"></div>
-        <button class="delete-btn-small" data-id="${proxy.id}">✕</button>
+      <div class="proxy-config-row">
+        <input type="text" class="proxy-host" value="${proxy.host}" data-id="${proxy.id}" placeholder="IP адрес">
+        <input type="number" class="proxy-port" value="${proxy.port}" data-id="${proxy.id}" placeholder="Порт">
+        <select class="proxy-type" data-id="${proxy.id}">
+          <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
+          <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
+          <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
+          <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
+        </select>
       </div>
     `;
     proxiesList.appendChild(item);
@@ -130,7 +116,7 @@ function renderProxies(proxies, activeProxyId) {
     });
   });
   
-  document.querySelectorAll('.proxy-name').forEach(input => {
+  document.querySelectorAll('.proxy-name-input').forEach(input => {
     input.addEventListener('change', () => updateProxy(parseInt(input.dataset.id), 'name', input.value));
   });
   
@@ -144,13 +130,6 @@ function renderProxies(proxies, activeProxyId) {
   
   document.querySelectorAll('.proxy-type').forEach(select => {
     select.addEventListener('change', () => updateProxy(parseInt(select.dataset.id), 'type', select.value));
-  });
-  
-  document.querySelectorAll('.proxy-item .toggle-switch').forEach(toggle => {
-    toggle.addEventListener('click', () => {
-      const enabled = !toggle.classList.contains('active');
-      updateProxy(parseInt(toggle.dataset.id), 'enabled', enabled);
-    });
   });
   
   document.querySelectorAll('.delete-btn-small').forEach(btn => {
@@ -173,6 +152,14 @@ function deleteProxy(id) {
       alert('Должен остаться хотя бы один прокси');
       return;
     }
+    
+    const proxyToDelete = data.proxies.find(p => p.id === id);
+    if (!proxyToDelete) return;
+    
+    if (!confirm(`Удалить прокси "${proxyToDelete.name}"?\n\n${proxyToDelete.host}:${proxyToDelete.port} (${proxyToDelete.type})`)) {
+      return;
+    }
+    
     const proxies = data.proxies.filter(p => p.id !== id);
     const updates = { proxies };
     if (data.activeProxyId === id) {
@@ -201,6 +188,7 @@ addProxyBtn.addEventListener('click', () => {
 
 // Тест прокси
 testProxyBtn.addEventListener('click', () => {
+  proxyTestResult.style.display = 'block';
   proxyTestResult.textContent = 'Проверка...';
   proxyTestResult.className = 'proxy-test-result loading';
   
@@ -348,104 +336,7 @@ function toggleSite(id, listKey, enabled) {
   });
 }
 
-// Очистка списков
-clearProxyListBtn.addEventListener('click', () => {
-  if (confirm('Удалить все сайты из списка прокси?')) {
-    chrome.storage.local.set({ proxyList: [] }, loadData);
-  }
-});
-
-clearDirectListBtn.addEventListener('click', () => {
-  if (confirm('Удалить все сайты из списка direct?')) {
-    chrome.storage.local.set({ directList: [] }, loadData);
-  }
-});
-
-// Импорт с URL для proxy list
-importProxyListFromUrlBtn.addEventListener('click', () => {
-  importFromUrl(proxyListUrl.value, 'proxyList', proxyImportStatus);
-});
-
-// Импорт с URL для direct list
-importDirectListFromUrlBtn.addEventListener('click', () => {
-  importFromUrl(directListUrl.value, 'directList', directImportStatus);
-});
-
-// Быстрые ссылки
-document.querySelectorAll('.quick-link-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const url = btn.dataset.url;
-    const directListUrlInput = document.getElementById('directListUrl');
-    const directImportStatusElement = document.getElementById('directImportStatus');
-    
-    directListUrlInput.value = url;
-    importFromUrl(url, 'directList', directImportStatusElement);
-  });
-});
-
-// Функция импорта с URL
-function importFromUrl(url, listKey, statusElement) {
-  url = url.trim();
-  
-  if (!url) {
-    statusElement.textContent = 'Введите URL';
-    statusElement.className = 'import-status error';
-    return;
-  }
-  
-  statusElement.textContent = 'Загрузка...';
-  statusElement.className = 'import-status loading';
-  
-  fetch(url)
-    .then(response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.text();
-    })
-    .then(text => {
-      const lines = text.split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#') && !line.startsWith('//'));
-      
-      if (lines.length === 0) {
-        throw new Error('Список пуст');
-      }
-      
-      chrome.storage.local.get([listKey], (data) => {
-        let list = data[listKey] || [];
-        let addedCount = 0;
-        
-        lines.forEach((domain, index) => {
-          if (!list.find(s => s.value.toLowerCase() === domain.toLowerCase())) {
-            list.push({
-              id: Date.now() + index,
-              value: domain,
-              enabled: true
-            });
-            addedCount++;
-          }
-        });
-        
-        chrome.storage.local.set({ [listKey]: list }, () => {
-          loadData();
-          statusElement.textContent = `✓ Добавлено ${addedCount} сайтов`;
-          statusElement.className = 'import-status success';
-          
-          setTimeout(() => {
-            statusElement.textContent = '';
-          }, 3000);
-        });
-      });
-    })
-    .catch(err => {
-      statusElement.textContent = `✗ Ошибка: ${err.message}`;
-      statusElement.className = 'import-status error';
-    });
-}
-
 // Экспорт/импорт JSON
-exportProxyListBtn.addEventListener('click', () => exportList('proxyList', 'proxy-list.json'));
-exportDirectListBtn.addEventListener('click', () => exportList('directList', 'direct-list.json'));
-
 function exportList(listKey, filename) {
   chrome.storage.local.get([listKey], (data) => {
     const json = JSON.stringify(data[listKey] || [], null, 2);
@@ -457,6 +348,7 @@ function exportList(listKey, filename) {
     a.click();
   });
 }
+
 
 // Полный экспорт конфигурации
 exportConfigBtn.addEventListener('click', () => {
@@ -625,6 +517,90 @@ clearLogsBtn.addEventListener('click', () => {
 // Инициализация
 loadData();
 
+// Быстрая загрузка RU Whitelist
+const importRuWhitelistBtn = document.getElementById('importRuWhitelist');
+if (importRuWhitelistBtn) {
+  importRuWhitelistBtn.addEventListener('click', () => {
+    const url = 'https://raw.githubusercontent.com/hxehex/russia-mobile-internet-whitelist/refs/heads/main/whitelist.txt';
+    
+    importRuWhitelistBtn.textContent = '⏳ Загрузка...';
+    importRuWhitelistBtn.disabled = true;
+    
+    fetch(url)
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      })
+      .then(text => {
+        const lines = text.split('\n')
+          .map(line => line.trim())
+          .filter(line => line && !line.startsWith('#') && !line.startsWith('//'));
+        
+        if (lines.length === 0) {
+          throw new Error('Список пуст');
+        }
+        
+        chrome.storage.local.get(['directList'], (data) => {
+          let list = data.directList || [];
+          let addedCount = 0;
+          
+          lines.forEach((domain, index) => {
+            if (!list.find(s => s.value.toLowerCase() === domain.toLowerCase())) {
+              list.push({
+                id: Date.now() + index,
+                value: domain,
+                enabled: true
+              });
+              addedCount++;
+            }
+          });
+          
+          chrome.storage.local.set({ directList: list }, () => {
+            loadData();
+            importRuWhitelistBtn.textContent = `✓ Добавлено ${addedCount} сайтов`;
+            
+            setTimeout(() => {
+              importRuWhitelistBtn.textContent = '🇷🇺 Загрузить RU Whitelist';
+              importRuWhitelistBtn.disabled = false;
+            }, 3000);
+          });
+        });
+      })
+      .catch(err => {
+        importRuWhitelistBtn.textContent = `✗ Ошибка: ${err.message}`;
+        setTimeout(() => {
+          importRuWhitelistBtn.textContent = '🇷🇺 Загрузить RU Whitelist';
+          importRuWhitelistBtn.disabled = false;
+        }, 3000);
+      });
+  });
+}
+
+
+// Обновление placeholder при изменении типа
+if (proxyListType) {
+  proxyListType.addEventListener('change', () => {
+    const placeholders = {
+      domain: 'google.com, *.ru, 2ip.ru',
+      ip: '192.168.1.1, 10.0.0.0/8',
+      url: 'https://example.com/path'
+    };
+    proxyListValue.placeholder = placeholders[proxyListType.value] || placeholders.domain;
+  });
+}
+
+if (directListType) {
+  directListType.addEventListener('change', () => {
+    const placeholders = {
+      domain: 'localhost, *.local',
+      ip: '127.0.0.1, 192.168.0.0/16',
+      url: 'https://internal.company.com'
+    };
+    directListValue.placeholder = placeholders[directListType.value] || placeholders.domain;
+  });
+}
+
+
 // Обработчик чекбокса автодобавления
 if (autoAddRelatedCheckbox) {
   autoAddRelatedCheckbox.addEventListener('change', () => {
@@ -789,14 +765,16 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
     
     const { mainDomain, relatedDomains } = response;
     
+    relatedDomainsSection.style.display = 'block';
+    
     if (relatedDomains.length === 0) {
-      relatedDomainsSection.style.display = 'block';
       relatedDomainsList.innerHTML = `
         <div class="related-domains-empty">
-          <div>📭 Не найдено связанных доменов</div>
+          <div>📭 Не найдено связанных доменов</div></br>
           <div class="related-domains-hint">Основной домен: <strong>${mainDomain}</strong></div>
         </div>
       `;
+      document.getElementById('relatedDomainsActions').style.display = 'none';
       return;
     }
     
@@ -805,7 +783,6 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
       const proxyList = data.proxyList || [];
       const directList = data.directList || [];
       
-      relatedDomainsSection.style.display = 'block';
       relatedDomainsList.innerHTML = `
         <div class="related-domains-hint">
           Основной домен: <strong>${mainDomain}</strong><br>
@@ -813,9 +790,15 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
         </div>
       `;
       
+      let hasUnaddedDomains = false;
+      
       relatedDomains.forEach(domain => {
         const inProxyList = proxyList.some(s => s.value === domain);
         const inDirectList = directList.some(s => s.value === domain);
+        
+        if (!inProxyList && !inDirectList) {
+          hasUnaddedDomains = true;
+        }
         
         const item = document.createElement('div');
         item.className = 'related-domain-item';
@@ -844,6 +827,10 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
         relatedDomainsList.appendChild(item);
       });
       
+      // Показываем кнопки массового добавления если есть неадобавленные домены
+      const actionsBlock = document.getElementById('relatedDomainsActions');
+      actionsBlock.style.display = hasUnaddedDomains ? 'flex' : 'none';
+      
       // Обработчики для кнопок добавления
       document.querySelectorAll('.add-related-btn.proxy').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -858,6 +845,71 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
           analyzeCurrentPageBtn.click(); // Обновляем список
         });
       });
+    });
+  });
+});
+
+// Скрыть блок связанных доменов
+document.getElementById('hideRelatedDomains')?.addEventListener('click', () => {
+  relatedDomainsSection.style.display = 'none';
+});
+
+// Добавить все домены в прокси
+document.getElementById('addAllToProxy')?.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ action: 'getRelatedDomains' }, (response) => {
+    if (!response || !response.relatedDomains) return;
+    
+    chrome.storage.local.get(['proxyList'], (data) => {
+      let proxyList = data.proxyList || [];
+      let addedCount = 0;
+      
+      response.relatedDomains.forEach((domain, index) => {
+        if (!proxyList.some(s => s.value === domain)) {
+          proxyList.push({
+            id: Date.now() + index,
+            value: domain,
+            enabled: true
+          });
+          addedCount++;
+        }
+      });
+      
+      if (addedCount > 0) {
+        chrome.storage.local.set({ proxyList }, () => {
+          loadData();
+          analyzeCurrentPageBtn.click(); // Обновляем список
+        });
+      }
+    });
+  });
+});
+
+// Добавить все домены напрямую
+document.getElementById('addAllToDirect')?.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ action: 'getRelatedDomains' }, (response) => {
+    if (!response || !response.relatedDomains) return;
+    
+    chrome.storage.local.get(['directList'], (data) => {
+      let directList = data.directList || [];
+      let addedCount = 0;
+      
+      response.relatedDomains.forEach((domain, index) => {
+        if (!directList.some(s => s.value === domain)) {
+          directList.push({
+            id: Date.now() + index,
+            value: domain,
+            enabled: true
+          });
+          addedCount++;
+        }
+      });
+      
+      if (addedCount > 0) {
+        chrome.storage.local.set({ directList }, () => {
+          loadData();
+          analyzeCurrentPageBtn.click(); // Обновляем список
+        });
+      }
     });
   });
 });

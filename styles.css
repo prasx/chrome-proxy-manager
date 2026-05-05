@@ -35,7 +35,6 @@ h3 {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
-  border-bottom: 2px solid #e0e0e0;
   align-items: center;
 }
 
@@ -46,24 +45,28 @@ h3 {
 }
 
 .tab-btn {
-  padding: 10px 16px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+  padding: 8px 16px;
   font-size: 13px;
-  font-weight: 500;
-  color: #666;
-  border-bottom: 3px solid transparent;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  border-radius: 4px;
   transition: all 0.2s;
+  font-weight: 500;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tab-btn:hover {
-  color: #1a73e8;
+  background: #f5f5f5;
 }
 
 .tab-btn.active {
-  color: #1a73e8;
-  border-bottom-color: #1a73e8;
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
 }
 
 .tab-content {
@@ -78,7 +81,7 @@ h3 {
 .subtabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   background: white;
   padding: 12px 16px 0;
   border-radius: 8px 8px 0 0;
@@ -126,6 +129,17 @@ h3 {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+.proxy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.proxy-header h3 {
+  margin: 0;
+}
+
 .proxy-header div {
   display: flex;
   gap: 4px;
@@ -133,11 +147,11 @@ h3 {
 
 .proxy-test-result {
   margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
   text-align: center;
-  min-height: 20px;
+  font-weight: 500;
 }
 
 .proxy-test-result.loading {
@@ -159,89 +173,85 @@ h3 {
 .proxies-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .proxy-item {
-  display: flex;
-  gap: 8px;
   padding: 12px;
   border: 2px solid #e0e0e0;
-  border-radius: 6px;
-  background: #f8f9fa;
+  border-radius: 8px;
+  background: white;
   transition: all 0.2s;
+}
+
+.proxy-item:hover {
+  border-color: #d0d0d0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .proxy-item.active {
   border-color: #1a73e8;
   background: #f0f7ff;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.15);
 }
 
-.proxy-radio {
+.proxy-header-row {
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.proxy-radio input[type="radio"] {
-  width: 18px;
-  height: 18px;
+.proxy-radio-input {
+  width: 20px;
+  height: 20px;
   cursor: pointer;
+  accent-color: #1a73e8;
+  flex-shrink: 0;
 }
 
-.proxy-info {
+.proxy-name-input {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.proxy-name {
-  padding: 6px 8px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: 6px;
+  font-size: 14px;
   font-weight: 600;
+  background: #f8f9fa;
+  transition: all 0.2s;
+}
+
+.proxy-name-input:focus {
   background: white;
+  border-color: #1a73e8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
 }
 
-.proxy-details {
-  display: flex;
-  gap: 6px;
+.proxy-config-row {
+  display: grid;
+  grid-template-columns: 45% 22% 30%;
+  gap: 8px;
+  padding-left: 30px;
 }
 
-.proxy-host {
-  flex: 2;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
-  background: white;
-}
-
-.proxy-port {
-  width: 70px;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
-  background: white;
-}
-
+.proxy-host,
+.proxy-port,
 .proxy-type {
-  width: 90px;
-  padding: 6px 8px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: 6px;
+  font-size: 13px;
   background: white;
+  transition: all 0.2s;
 }
 
-.proxy-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-  justify-content: center;
+.proxy-host:focus,
+.proxy-port:focus,
+.proxy-type:focus {
+  border-color: #1a73e8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
 }
 
 .delete-btn-small {
@@ -249,14 +259,16 @@ h3 {
   border: none;
   color: #d93025;
   cursor: pointer;
-  font-size: 16px;
-  padding: 2px 6px;
+  font-size: 18px;
+  padding: 4px 8px;
   border-radius: 4px;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .delete-btn-small:hover {
   background: #fce8e6;
+  transform: scale(1.1);
 }
 
 .empty-state-small {
@@ -367,6 +379,7 @@ h3 {
   padding: 16px;
   border-radius: 0 0 8px 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-top: 0;
 }
 
 .sites-header {
@@ -404,6 +417,23 @@ h3 {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  align-items: center;
+}
+
+.site-type-select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.site-type-select:focus {
+  outline: none;
+  border-color: #1a73e8;
 }
 
 .add-site input {
@@ -429,6 +459,7 @@ h3 {
   font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .add-site button:hover {
@@ -540,7 +571,8 @@ h3 {
 }
 
 .site-hint {
-  margin-top: 8px;
+  margin-top: 0;
+  margin-bottom: 12px;
   padding: 8px 12px;
   background: #f0f7ff;
   border-left: 3px solid #1a73e8;
@@ -558,6 +590,42 @@ h3 {
   color: #1a73e8;
   font-size: 11px;
 }
+
+.quick-import {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: #f0f7ff;
+  border-radius: 6px;
+  border: 1px solid #d0e4ff;
+}
+
+.quick-import-btn {
+  padding: 8px 16px;
+  background: white;
+  color: #1a73e8;
+  border: 1px solid #1a73e8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.quick-import-btn:hover {
+  background: #1a73e8;
+  color: white;
+}
+
+.quick-import-hint {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
 
 .sites-list {
   max-height: 300px;
@@ -801,6 +869,70 @@ h3 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.related-domains-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn-small {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid #d0e4ff;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.icon-btn-small:hover {
+  background: #fce8e6;
+  border-color: #d93025;
+  color: #d93025;
+}
+
+.related-domains-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d0e4ff;
+}
+
+.bulk-add-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.bulk-add-btn.proxy {
+  background: white;
+  color: #137333;
+  border-color: #137333;
+}
+
+.bulk-add-btn.proxy:hover {
+  background: #137333;
+  color: white;
+}
+
+.bulk-add-btn.direct {
+  background: white;
+  color: #b06000;
+  border-color: #b06000;
+}
+
+.bulk-add-btn.direct:hover {
+  background: #b06000;
+  color: white;
 }
 
 .related-domains-section h4 {

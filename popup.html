@@ -32,7 +32,7 @@
           <button id="addProxy" class="icon-btn" title="Добавить прокси">➕</button>
         </div>
       </div>
-      <div id="proxyTestResult" class="proxy-test-result"></div>
+      <div id="proxyTestResult" class="proxy-test-result" style="display: none;"></div>
       <div id="proxiesList" class="proxies-list">
         <!-- Список прокси -->
       </div>
@@ -53,41 +53,42 @@
             <button id="analyzeCurrentPage" class="analyze-btn" title="Найти все домены на текущей странице">
               🔍 Анализ страницы
             </button>
-            <button id="exportProxyList" class="icon-btn" title="Экспорт">💾</button>
-            <button id="clearProxyList" class="icon-btn danger" title="Очистить">🗑️</button>
           </div>
-        </div>
-        
-        <div class="add-site">
-          <input type="text" id="proxyListValue" placeholder="google.com, *.ru, 2ip.ru">
-          <button id="addToProxyList">Добавить</button>
         </div>
         
         <div class="site-hint">
           💡 Эти сайты будут открываться через прокси
         </div>
 
+        <div class="add-site">
+          <select id="proxyListType" class="site-type-select">
+            <option value="domain">Домен</option>
+            <option value="ip">IP</option>
+            <option value="url">URL</option>
+          </select>
+          <input type="text" id="proxyListValue" placeholder="google.com, *.ru, 2ip.ru">
+          <button id="addToProxyList">Добавить</button>
+        </div>
+
         <!-- Блок анализа связанных доменов -->
         <div id="relatedDomainsSection" class="related-domains-section" style="display: none;">
           <div class="related-domains-header">
             <h4>🔗 Связанные домены на странице</h4>
-            <label class="auto-add-checkbox">
-              <input type="checkbox" id="autoAddRelated">
-              <span>Автодобавление</span>
-            </label>
+            <div class="related-domains-controls">
+              <label class="auto-add-checkbox" title="При добавлении домена через контекстное меню автоматически добавятся все связанные домены">
+                <input type="checkbox" id="autoAddRelated">
+                <span>Автодобавление</span>
+              </label>
+              <button id="hideRelatedDomains" class="icon-btn-small" title="Скрыть">✕</button>
+            </div>
           </div>
           <div id="relatedDomainsList" class="related-domains-list">
             <!-- Список связанных доменов -->
           </div>
-        </div>
-
-        <div class="import-list">
-          <h4>Импорт списка с URL</h4>
-          <div class="import-url-row">
-            <input type="text" id="proxyListUrl" placeholder="https://example.com/blocked-sites.txt">
-            <button id="importProxyListFromUrl">Загрузить</button>
+          <div id="relatedDomainsActions" class="related-domains-actions" style="display: none;">
+            <button id="addAllToProxy" class="bulk-add-btn proxy">➕ Добавить все в прокси</button>
+            <button id="addAllToDirect" class="bulk-add-btn direct">➕ Добавить все напрямую</button>
           </div>
-          <div id="proxyImportStatus" class="import-status"></div>
         </div>
 
         <div class="sites-list" id="proxyListSites">
@@ -101,32 +102,27 @@
       <div class="sites-section">
         <div class="sites-header">
           <h3>Сайты напрямую</h3>
-          <div>
-            <button id="exportDirectList" class="icon-btn" title="Экспорт">💾</button>
-            <button id="clearDirectList" class="icon-btn danger" title="Очистить">🗑️</button>
-          </div>
-        </div>
-        
-        <div class="add-site">
-          <input type="text" id="directListValue" placeholder="localhost, 127.0.0.1, *.local">
-          <button id="addToDirectList">Добавить</button>
         </div>
         
         <div class="site-hint">
           💡 Эти сайты всегда будут открываться напрямую (приоритет выше)
         </div>
-
-        <div class="import-list">
-          <h4>Импорт списка с URL</h4>
-          <div class="import-url-row">
-            <input type="text" id="directListUrl" placeholder="https://example.com/whitelist.txt">
-            <button id="importDirectListFromUrl">Загрузить</button>
-          </div>
-          <div class="quick-links">
-            <span>Быстрые ссылки:</span>
-            <button class="quick-link-btn" data-url="https://raw.githubusercontent.com/hxehex/russia-mobile-internet-whitelist/refs/heads/main/whitelist.txt">🇷🇺 RU Whitelist</button>
-          </div>
-          <div id="directImportStatus" class="import-status"></div>
+        
+        <div class="add-site">
+          <select id="directListType" class="site-type-select">
+            <option value="domain">Домен</option>
+            <option value="ip">IP</option>
+            <option value="url">URL</option>
+          </select>
+          <input type="text" id="directListValue" placeholder="localhost, 127.0.0.1, *.local">
+          <button id="addToDirectList">Добавить</button>
+        </div>
+        
+        <div class="quick-import">
+          <button id="importRuWhitelist" class="quick-import-btn">
+            Загрузить RU Whitelist
+          </button>
+          <span class="quick-import-hint">Список российских сайтов для прямого доступа</span>
         </div>
 
         <div class="sites-list" id="directListSites">

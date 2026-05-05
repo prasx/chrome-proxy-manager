@@ -44,18 +44,6 @@ function createContextMenu() {
     });
     
     chrome.contextMenus.create({
-      id: 'analyzeCurrentPage',
-      title: '🔍 Анализ связанных доменов',
-      contexts: ['page']
-    });
-    
-    chrome.contextMenus.create({
-      id: 'separator2',
-      type: 'separator',
-      contexts: ['page', 'link']
-    });
-    
-    chrome.contextMenus.create({
       id: 'removeFromLists',
       title: '🗑️ Удалить из всех списков',
       contexts: ['page', 'link']
@@ -117,13 +105,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
               addRelatedDomains(tab.id, 'directList');
             }
           });
-        }
-        break;
-        
-      case 'analyzeCurrentPage':
-        if (tab) {
-          // Открываем popup с анализом
-          chrome.action.openPopup();
         }
         break;
         
