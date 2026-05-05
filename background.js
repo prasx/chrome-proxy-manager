@@ -14,7 +14,25 @@ chrome.runtime.onInstalled.addListener(() => {
     const activeProxy = defaults.proxies.find(p => p.id === defaults.activeProxyId) || defaults.proxies[0];
     applyProxyConfig(defaults.proxyList, defaults.directList, defaults.proxies, activeProxy);
   });
+  
+  // Запускаем автоочистку логов
+  startLogCleanup();
 });
+
+// Автоматическая очистка логов каждые 3 часа
+function startLogCleanup() {
+  const THREE_HOURS = 3 * 60 * 60 * 1000; // 3 часа в миллисекундах
+  
+  setInterval(() => {
+    chrome.storage.local.set({ routeLogs: '' }, () => {
+      console.log('Логи автоматически очищены');
+      logRoute('CONFIG', 'Auto-cleanup', 'Логи очищены автоматически');
+    });
+  }, THREE_HOURS);
+}
+
+// Запускаем очистку при загрузке service worker
+startLogCleanup();
 
 // Слушаем изменения в storage
 chrome.storage.onChanged.addListener((changes) => {
