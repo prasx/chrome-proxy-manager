@@ -154,7 +154,9 @@ function addRelatedDomains(tabId, listKey) {
     
     domains.forEach(domain => {
       if (!list.find(s => s.value === domain)) {
-        list.push({ id: Date.now() + Math.random(), value: domain, enabled: true });
+        // Генерируем уникальный ID
+        const uniqueId = Date.now() + addedCount;
+        list.push({ id: uniqueId, value: domain, enabled: true });
         addedCount++;
       }
     });

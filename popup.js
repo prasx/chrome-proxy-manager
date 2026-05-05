@@ -412,20 +412,22 @@ function importFromUrl(url, listKey, statusElement) {
       
       chrome.storage.local.get([listKey], (data) => {
         let list = data[listKey] || [];
+        let addedCount = 0;
         
-        lines.forEach(domain => {
+        lines.forEach((domain, index) => {
           if (!list.find(s => s.value.toLowerCase() === domain.toLowerCase())) {
             list.push({
-              id: Date.now() + Math.random(),
+              id: Date.now() + index,
               value: domain,
               enabled: true
             });
+            addedCount++;
           }
         });
         
         chrome.storage.local.set({ [listKey]: list }, () => {
           loadData();
-          statusElement.textContent = `✓ Добавлено ${lines.length} сайтов`;
+          statusElement.textContent = `✓ Добавлено ${addedCount} сайтов`;
           statusElement.className = 'import-status success';
           
           setTimeout(() => {
