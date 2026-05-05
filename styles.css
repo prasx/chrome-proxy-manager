@@ -978,36 +978,40 @@ h3 {
 }
 
 .stat-card {
-  padding: 16px;
-  border-radius: 8px;
-  text-align: center;
-  border: 2px solid;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .stat-card.proxy {
-  background: #e6f4ea;
-  border-color: #34a853;
+  border-left: 3px solid #34a853;
 }
 
 .stat-card.direct {
-  background: #f0f7ff;
-  border-color: #1a73e8;
+  border-left: 3px solid #1a73e8;
 }
 
 .stat-card.total {
-  background: #fef7e0;
-  border-color: #f9ab00;
+  border-left: 3px solid #f9ab00;
 }
 
 .stat-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+  font-size: 24px;
+  opacity: 0.8;
+}
+
+.stat-info {
+  flex: 1;
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 18px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .stat-card.proxy .stat-value {
@@ -1023,11 +1027,11 @@ h3 {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   font-weight: 600;
   color: #666;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .activity-chart {
