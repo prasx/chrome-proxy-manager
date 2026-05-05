@@ -320,6 +320,46 @@ function logRoute(type, action, details) {
   });
 }
 
+// Нормализация доменов (убираем динамические части)
+function normalizeDomain(domain) {
+  // Убираем числовые префиксы типа rr4---, s1-, cdn123-
+  // rr4---sn-aigzrnze.googlevideo.com -> *.googlevideo.com
+  // s1-cdn.example.com -> *.example.com
+  
+  // Паттерны динамических поддоменов
+  const dynamicPatterns = [
+    /^[a-z0-9]+-*[a-z0-9]*---/i,  // rr4---, s1---
+    /^[a-z]+\d+[a-z]*-/i,          // cdn123-, s1-, r2-
+    /^\d+[a-z]*-/i,                // 123-, 1a-
+    /^[a-z]\d+-/i                  // r1-, s2-
+  ];
+  
+  const parts = domain.split('.');
+  
+  // Если меньше 3 частей, возвращаем как есть
+  if (parts.length < 3) {
+    return domain;
+  }
+  
+  // Проверяем первую часть на динамический паттерн
+  const firstPart = parts[0];
+  const isDynamic = dynamicPatterns.some(pattern => pattern.test(firstPart));
+  
+  if (isDynamic) {
+    // Убираем первую часть и добавляем wildcard
+    const baseDomain = parts.slice(1).join('.');
+    return `*.${baseDomain}`;
+  }
+  
+  // Проверяем на CDN паттерны (cdn1, cdn2, etc)
+  if (/^(cdn|cache|edge|node|server)\d+$/i.test(firstPart)) {
+    const baseDomain = parts.slice(1).join('.');
+    return `*.${baseDomain}`;
+  }
+  
+  return domain;
+}
+
 // Отслеживание связанных доменов для каждой вкладки
 const tabDomains = new Map(); // tabId -> Set of domains
 
@@ -411,7 +451,9 @@ chrome.webRequest.onBeforeRequest.addListener(
         if (!tabDomains.has(details.tabId)) {
           tabDomains.set(details.tabId, new Set());
         }
-        tabDomains.get(details.tabId).add(host);
+        // Нормализуем домен перед добавлением
+        const normalizedDomain = normalizeDomain(host);
+        tabDomains.get(details.tabId).add(normalizedDomain);
       }
       
       if (details.type === 'main_frame' || details.type === 'sub_frame' || details.type === 'xmlhttprequest') {

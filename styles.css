@@ -899,6 +899,11 @@ h3 {
   color: #b06000;
 }
 
+.domain-badge.wildcard {
+  background: #e8f0fe;
+  color: #1967d2;
+}
+
 .related-domain-actions {
   display: flex;
   gap: 6px;

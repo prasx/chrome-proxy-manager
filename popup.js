@@ -825,8 +825,12 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
           statusBadge = '<span class="domain-badge direct">В списке напрямую</span>';
         }
         
+        // Показываем если это wildcard паттерн
+        const isWildcard = domain.startsWith('*.');
+        const wildcardHint = isWildcard ? '<span class="domain-badge wildcard">Wildcard</span>' : '';
+        
         item.innerHTML = `
-          <div class="related-domain-name">${domain} ${statusBadge}</div>
+          <div class="related-domain-name">${domain} ${wildcardHint} ${statusBadge}</div>
           <div class="related-domain-actions">
             ${!inProxyList && !inDirectList ? `
               <button class="add-related-btn proxy" data-domain="${domain}">+ Прокси</button>
