@@ -149,13 +149,25 @@ function logRoute(type, action, details) {
   });
 }
 
-// Перехват запросов для логирования
+// Отслеживание связанных доменов для каждой вкладки
+const tabDomains = new Map(); // tabId -> Set of domains
+
+// Перехват запросов для логирования и анализа доменов
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
-    if (details.type === 'main_frame' || details.type === 'sub_frame' || details.type === 'xmlhttprequest') {
-      try {
-        const url = new URL(details.url);
-        const host = url.hostname;
+    try {
+      const url = new URL(details.url);
+      const host = url.hostname;
+      
+      // Отслеживаем все домены для вкладки
+      if (details.tabId >= 0) {
+        if (!tabDomains.has(details.tabId)) {
+          tabDomains.set(details.tabId, new Set());
+        }
+        tabDomains.get(details.tabId).add(host);
+      }
+      
+      if (details.type === 'main_frame' || details.type === 'sub_frame' || details.type === 'xmlhttprequest') {
         
         chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
           const proxyList = data.proxyList || [];
@@ -250,10 +262,48 @@ chrome.webRequest.onBeforeRequest.addListener(
             logRoute('REQUEST', routeType, `${host} -> ${proxyInfo} (matched: ${matchedSite})`);
           }
         });
-      } catch (e) {
-        console.error('Log error:', e);
       }
+    } catch (e) {
+      console.error('Log error:', e);
     }
   },
   { urls: ['<all_urls>'] }
 );
+
+// Очистка данных при закрытии вкладки
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabDomains.delete(tabId);
+});
+
+// API для получения связанных доменов текущей вкладки
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getRelatedDomains') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        const domains = tabDomains.get(tabs[0].id);
+        const mainUrl = new URL(tabs[0].url);
+        const mainHost = mainUrl.hostname;
+        
+        if (domains) {
+          // Фильтруем домены: убираем основной и сортируем
+          const relatedDomains = Array.from(domains)
+            .filter(d => d !== mainHost)
+            .sort();
+          
+          sendResponse({ 
+            mainDomain: mainHost,
+            relatedDomains: relatedDomains 
+          });
+        } else {
+          sendResponse({ 
+            mainDomain: mainHost,
+            relatedDomains: [] 
+          });
+        }
+      } else {
+        sendResponse({ mainDomain: null, relatedDomains: [] });
+      }
+    });
+    return true; // Асинхронный ответ
+  }
+});

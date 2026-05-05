@@ -49,6 +49,9 @@
         <div class="sites-header">
           <h3>Сайты через прокси</h3>
           <div>
+            <button id="analyzeCurrentPage" class="analyze-btn" title="Найти все домены на текущей странице">
+              🔍 Анализ страницы
+            </button>
             <button id="exportProxyList" class="icon-btn" title="Экспорт">💾</button>
             <button id="clearProxyList" class="icon-btn danger" title="Очистить">🗑️</button>
           </div>
@@ -61,6 +64,14 @@
         
         <div class="site-hint">
           💡 Эти сайты будут открываться через прокси
+        </div>
+
+        <!-- Блок анализа связанных доменов -->
+        <div id="relatedDomainsSection" class="related-domains-section" style="display: none;">
+          <h4>🔗 Связанные домены на странице</h4>
+          <div id="relatedDomainsList" class="related-domains-list">
+            <!-- Список связанных доменов -->
+          </div>
         </div>
 
         <div class="import-list">

@@ -3,6 +3,9 @@ const addProxyBtn = document.getElementById('addProxy');
 const proxiesList = document.getElementById('proxiesList');
 const testProxyBtn = document.getElementById('testProxy');
 const proxyTestResult = document.getElementById('proxyTestResult');
+const analyzeCurrentPageBtn = document.getElementById('analyzeCurrentPage');
+const relatedDomainsSection = document.getElementById('relatedDomainsSection');
+const relatedDomainsList = document.getElementById('relatedDomainsList');
 
 // Proxy list
 const addToProxyListBtn = document.getElementById('addToProxyList');
@@ -610,3 +613,82 @@ clearLogsBtn.addEventListener('click', () => {
 
 // Инициализация
 loadData();
+
+// Анализ текущей страницы
+analyzeCurrentPageBtn.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ action: 'getRelatedDomains' }, (response) => {
+    if (!response || !response.mainDomain) {
+      alert('Не удалось получить информацию о текущей странице');
+      return;
+    }
+    
+    const { mainDomain, relatedDomains } = response;
+    
+    if (relatedDomains.length === 0) {
+      relatedDomainsSection.style.display = 'block';
+      relatedDomainsList.innerHTML = `
+        <div class="related-domains-empty">
+          <div>📭 Не найдено связанных доменов</div>
+          <div class="related-domains-hint">Основной домен: <strong>${mainDomain}</strong></div>
+        </div>
+      `;
+      return;
+    }
+    
+    // Получаем текущие списки
+    chrome.storage.local.get(['proxyList', 'directList'], (data) => {
+      const proxyList = data.proxyList || [];
+      const directList = data.directList || [];
+      
+      relatedDomainsSection.style.display = 'block';
+      relatedDomainsList.innerHTML = `
+        <div class="related-domains-hint">
+          Основной домен: <strong>${mainDomain}</strong><br>
+          Найдено связанных доменов: <strong>${relatedDomains.length}</strong>
+        </div>
+      `;
+      
+      relatedDomains.forEach(domain => {
+        const inProxyList = proxyList.some(s => s.value === domain);
+        const inDirectList = directList.some(s => s.value === domain);
+        
+        const item = document.createElement('div');
+        item.className = 'related-domain-item';
+        
+        let statusBadge = '';
+        if (inProxyList) {
+          statusBadge = '<span class="domain-badge proxy">В списке прокси</span>';
+        } else if (inDirectList) {
+          statusBadge = '<span class="domain-badge direct">В списке напрямую</span>';
+        }
+        
+        item.innerHTML = `
+          <div class="related-domain-name">${domain} ${statusBadge}</div>
+          <div class="related-domain-actions">
+            ${!inProxyList && !inDirectList ? `
+              <button class="add-related-btn proxy" data-domain="${domain}">+ Прокси</button>
+              <button class="add-related-btn direct" data-domain="${domain}">+ Напрямую</button>
+            ` : ''}
+          </div>
+        `;
+        
+        relatedDomainsList.appendChild(item);
+      });
+      
+      // Обработчики для кнопок добавления
+      document.querySelectorAll('.add-related-btn.proxy').forEach(btn => {
+        btn.addEventListener('click', () => {
+          addToList(btn.dataset.domain, 'proxyList');
+          analyzeCurrentPageBtn.click(); // Обновляем список
+        });
+      });
+      
+      document.querySelectorAll('.add-related-btn.direct').forEach(btn => {
+        btn.addEventListener('click', () => {
+          addToList(btn.dataset.domain, 'directList');
+          analyzeCurrentPageBtn.click(); // Обновляем список
+        });
+      });
+    });
+  });
+});

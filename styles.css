@@ -786,3 +786,151 @@ h3 {
   color: #999;
   font-size: 13px;
 }
+
+/* Связанные домены */
+.related-domains-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0f7ff;
+  border: 1px solid #d0e4ff;
+  border-radius: 6px;
+}
+
+.related-domains-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin-bottom: 12px;
+}
+
+.related-domains-hint {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+.related-domains-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.related-domains-empty {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 13px;
+}
+
+.related-domain-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.related-domain-item:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.1);
+}
+
+.related-domain-name {
+  flex: 1;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.domain-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.domain-badge.proxy {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.domain-badge.direct {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.related-domain-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.add-related-btn {
+  padding: 6px 12px;
+  border: 1px solid;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.add-related-btn.proxy {
+  background: white;
+  color: #137333;
+  border-color: #137333;
+}
+
+.add-related-btn.proxy:hover {
+  background: #137333;
+  color: white;
+}
+
+.add-related-btn.direct {
+  background: white;
+  color: #b06000;
+  border-color: #b06000;
+}
+
+.add-related-btn.direct:hover {
+  background: #b06000;
+  color: white;
+}
+
+/* Кнопка анализа страницы */
+.analyze-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #1a73e8;
+  background: white;
+  color: #1a73e8;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.analyze-btn:hover {
+  background: #1a73e8;
+  color: white;
+}
+
+.analyze-btn:active {
+  transform: scale(0.98);
+}
