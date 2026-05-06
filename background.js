@@ -1,6 +1,6 @@
 // Инициализация при установке
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
+chrome.runtime.onInstalled.addListener((details) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate'], (data) => {
     const defaults = {
       proxyList: data.proxyList || [],
       directList: data.directList || [],
@@ -9,6 +9,17 @@ chrome.runtime.onInstalled.addListener(() => {
       ],
       activeProxyId: data.activeProxyId || Date.now()
     };
+    
+    // Сохраняем дату установки (только при первой установке)
+    if (!data.installDate) {
+      defaults.installDate = Date.now();
+    }
+    
+    // Обновляем дату последнего обновления
+    if (details.reason === 'update') {
+      defaults.lastUpdateDate = Date.now();
+      console.log(`Обновлено с версии ${details.previousVersion} до ${chrome.runtime.getManifest().version}`);
+    }
     
     chrome.storage.local.set(defaults);
     const activeProxy = defaults.proxies.find(p => p.id === defaults.activeProxyId) || defaults.proxies[0];

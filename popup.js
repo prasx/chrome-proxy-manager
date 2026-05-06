@@ -517,6 +517,11 @@ clearLogsBtn.addEventListener('click', () => {
 // Инициализация
 loadData();
 
+// Загрузка версии в футер
+const manifest = chrome.runtime.getManifest();
+document.getElementById('footerVersion').textContent = manifest.version;
+
+
 // Быстрая загрузка RU Whitelist
 const importRuWhitelistBtn = document.getElementById('importRuWhitelist');
 if (importRuWhitelistBtn) {
@@ -913,3 +918,4 @@ document.getElementById('addAllToDirect')?.addEventListener('click', () => {
     });
   });
 });
+

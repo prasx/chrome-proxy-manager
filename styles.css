@@ -1289,3 +1289,61 @@ h3 {
   background: #d93025;
   color: white;
 }
+
+/* Футер */
+.footer {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-version {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.footer-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.footer-value {
+  color: #1a73e8;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.footer-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.footer-link {
+  padding: 6px 12px;
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.footer-link:hover {
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+
