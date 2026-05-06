@@ -731,11 +731,19 @@ h3 {
   font-weight: 500;
   color: #333;
   word-break: break-all;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-route {
   color: #666;
   font-size: 11px;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-rule {
@@ -1109,7 +1117,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px;
+  padding: 10px 12px;
   background: #f8f9fa;
   border-radius: 6px;
   transition: all 0.2s;
@@ -1120,53 +1128,49 @@ h3 {
 }
 
 .top-domain-rank {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #1a73e8;
   color: white;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
-}
-
-.top-domain-info {
-  flex: 1;
-  min-width: 0;
 }
 
 .top-domain-name {
-  font-size: 12px;
+  flex: 1;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
-.top-domain-bar {
-  height: 6px;
-  background: #e0e0e0;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.top-domain-bar-proxy {
-  height: 100%;
-  background: linear-gradient(90deg, #34a853, #1a73e8);
-  transition: width 0.3s;
-}
-
-.top-domain-count {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a73e8;
+.domain-route-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
   flex-shrink: 0;
 }
+
+.domain-route-badge.proxy {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.domain-route-badge.direct {
+  background: #f0f7ff;
+  color: #1a73e8;
+}
+
 
 .reset-stats-btn {
   width: 100%;

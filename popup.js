@@ -416,7 +416,7 @@ function loadLogs() {
     logLines.forEach(line => {
       if (!line.trim()) return;
       
-      // Парсим строку: [04.05.2026, 20:32:39] REQUEST: PROXY - 2ip.ru -> SOCKS5 192.168.1.131:1080 (matched: *.ru)
+      // Парсим строку: [20:32:39] REQUEST: PROXY - 2ip.ru -> SOCKS5 192.168.1.131:1080 (matched: *.ru)
       const match = line.match(/\[(.*?)\]\s+(\w+):\s+(\w+)\s+-\s+(.*?)\s+->\s+(.*?)(?:\s+\(matched:\s+(.*?)\))?$/);
       
       if (match) {
@@ -476,8 +476,8 @@ function renderLogs(logs) {
       <td class="log-time">${log.time}</td>
       <td><span class="log-type ${typeClass}">${log.type}</span></td>
       <td class="log-domain">${log.domain}</td>
-      <td class="log-route">${log.route}</td>
       <td class="log-rule">${log.rule}</td>
+      <td class="log-route">${log.route}</td>
     `;
     
     logsTableBody.appendChild(row);
@@ -716,17 +716,15 @@ function showTopDomains(domains) {
     const div = document.createElement('div');
     div.className = 'top-domain-item';
     
-    const proxyPercent = Math.round((item.proxy / item.total) * 100);
+    // Определяем основной тип маршрутизации
+    const routeType = item.proxy > item.direct ? 'proxy' : 'direct';
+    const routeIcon = item.proxy > item.direct ? '🔒' : '✅';
+    const routeLabel = item.proxy > item.direct ? 'Прокси' : 'Напрямую';
     
     div.innerHTML = `
       <div class="top-domain-rank">${index + 1}</div>
-      <div class="top-domain-info">
-        <div class="top-domain-name">${item.domain}</div>
-        <div class="top-domain-bar">
-          <div class="top-domain-bar-proxy" style="width: ${proxyPercent}%"></div>
-        </div>
-      </div>
-      <div class="top-domain-count">${item.total}</div>
+      <div class="top-domain-name">${item.domain}</div>
+      <span class="domain-route-badge ${routeType}">${routeIcon} ${routeLabel}: ${item.total}</span>
     `;
     
     topDomainsList.appendChild(div);

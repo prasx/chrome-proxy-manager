@@ -298,8 +298,9 @@ function applyProxyConfig(proxyList, directList, proxies, activeProxy) {
 
 // Логирование маршрутов
 function logRoute(type, action, details) {
-  const timestamp = new Date().toLocaleString('ru-RU');
-  const logEntry = `[${timestamp}] ${type}: ${action} - ${details}\n`;
+  const now = new Date();
+  const timeString = now.toLocaleTimeString('ru-RU');
+  const logEntry = `[${timeString}] ${type}: ${action} - ${details}\n`;
   
   chrome.storage.local.get(['routeLogs'], (data) => {
     let logs = data.routeLogs || '';
