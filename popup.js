@@ -20,7 +20,6 @@ const directListType = document.getElementById('directListType');
 const directListValue = document.getElementById('directListValue');
 const directListSites = document.getElementById('directListSites');
 
-const importFile = document.getElementById('importFile');
 const importConfigFile = document.getElementById('importConfigFile');
 const exportConfigBtn = document.getElementById('exportConfig');
 const importConfigBtn = document.getElementById('importConfig');
@@ -336,20 +335,6 @@ function toggleSite(id, listKey, enabled) {
   });
 }
 
-// Экспорт/импорт JSON
-function exportList(listKey, filename) {
-  chrome.storage.local.get([listKey], (data) => {
-    const json = JSON.stringify(data[listKey] || [], null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-  });
-}
-
-
 // Полный экспорт конфигурации
 exportConfigBtn.addEventListener('click', () => {
   chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
@@ -367,7 +352,7 @@ exportConfigBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `xray-proxy-config-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `proxy-config-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
   });
 });

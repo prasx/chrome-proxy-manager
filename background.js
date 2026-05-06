@@ -560,7 +560,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 // API для получения связанных доменов текущей вкладки
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'getRelatedDomains') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
