@@ -1,8 +1,80 @@
+// Генератор уникальных ID
+function generateUniqueId() {
+  return Date.now() + Math.random();
+}
+
+// Debounce функция для оптимизации поиска
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Валидация IP адреса
+function isValidIP(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  
+  // IPv4
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (ipv4Regex.test(ip)) {
+    const parts = ip.split('.');
+    return parts.every(part => {
+      const num = parseInt(part, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+  
+  // IPv6 (упрощённая проверка)
+  const ipv6Regex = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+  if (ipv6Regex.test(ip)) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Валидация hostname
+function isValidHostname(hostname) {
+  if (!hostname || typeof hostname !== 'string') return false;
+  
+  // Проверка длины
+  if (hostname.length > 253) return false;
+  
+  // Hostname может содержать буквы, цифры, дефисы и точки
+  const hostnameRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+  
+  return hostnameRegex.test(hostname);
+}
+
+// Валидация порта
+function isValidPort(port) {
+  const portNum = parseInt(port, 10);
+  return !isNaN(portNum) && portNum >= 1 && portNum <= 65535;
+}
+
+// Валидация прокси хоста (IP или hostname)
+function isValidProxyHost(host) {
+  if (!host || typeof host !== 'string') return false;
+  
+  const trimmedHost = host.trim();
+  
+  // Проверяем IP или hostname
+  return isValidIP(trimmedHost) || isValidHostname(trimmedHost);
+}
+
 // Элементы
 const addProxyBtn = document.getElementById('addProxy');
 const proxiesList = document.getElementById('proxiesList');
 const testProxyBtn = document.getElementById('testProxy');
+const testDNSBtn = document.getElementById('testDNS');
 const proxyTestResult = document.getElementById('proxyTestResult');
+const dnsTestResult = document.getElementById('dnsTestResult');
 const analyzeCurrentPageBtn = document.getElementById('analyzeCurrentPage');
 const relatedDomainsSection = document.getElementById('relatedDomainsSection');
 const relatedDomainsList = document.getElementById('relatedDomainsList');
@@ -24,6 +96,12 @@ const importConfigFile = document.getElementById('importConfigFile');
 const exportConfigBtn = document.getElementById('exportConfig');
 const importConfigBtn = document.getElementById('importConfig');
 const clearLogsBtn = document.getElementById('clearLogs');
+const mainToggle = document.getElementById('mainToggle');
+const extensionStatusBadge = document.getElementById('extensionStatusBadge');
+const proxyListSearch = document.getElementById('proxyListSearch');
+const directListSearch = document.getElementById('directListSearch');
+const proxyListCount = document.getElementById('proxyListCount');
+const directListCount = document.getElementById('directListCount');
 
 // Управление вкладками
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -54,26 +132,45 @@ document.querySelectorAll('.subtab-btn').forEach(btn => {
     
     document.getElementById(subtabName).classList.add('active');
     btn.classList.add('active');
+    
+    // Перерендериваем данные при переключении вкладок
+    loadData();
   });
 });
 
 // Загрузка данных
 function loadData() {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled'], (data) => {
     const proxyList = data.proxyList || [];
     const directList = data.directList || [];
     const proxies = data.proxies || [];
     const activeProxyId = data.activeProxyId;
     const autoAddRelated = data.autoAddRelated || false;
+    const extensionEnabled = data.extensionEnabled !== false; // По умолчанию включено
     
     renderProxies(proxies, activeProxyId);
-    renderSites(proxyList, proxyListSites, 'proxyList');
-    renderSites(directList, directListSites, 'directList');
+    
+    // Применяем текущий поисковый запрос при рендере
+    const proxySearchQuery = proxyListSearch?.value || '';
+    const directSearchQuery = directListSearch?.value || '';
+    
+    const filteredProxyList = filterSites(proxyList, proxySearchQuery);
+    const filteredDirectList = filterSites(directList, directSearchQuery);
+    
+    renderSites(filteredProxyList, proxyListSites, 'proxyList');
+    renderSites(filteredDirectList, directListSites, 'directList');
+    
+    // Обновляем счётчики
+    updateSearchCount(proxyList.length, filteredProxyList.length, proxyListCount);
+    updateSearchCount(directList.length, filteredDirectList.length, directListCount);
     
     // Устанавливаем состояние чекбокса
     if (autoAddRelatedCheckbox) {
       autoAddRelatedCheckbox.checked = autoAddRelated;
     }
+    
+    // Обновляем главный переключатель
+    updateMainToggle(extensionEnabled);
   });
 }
 
@@ -88,6 +185,13 @@ function renderProxies(proxies, activeProxyId) {
   proxies.forEach(proxy => {
     const item = document.createElement('div');
     item.className = `proxy-item ${proxy.id === activeProxyId ? 'active' : ''}`;
+    
+    // Проверяем валидность
+    const isHostValid = !proxy.host || proxy.host.trim() === '' || isValidProxyHost(proxy.host);
+    const isPortValid = !proxy.port || isValidPort(proxy.port);
+    const hostClass = isHostValid ? '' : 'invalid-input';
+    const portClass = isPortValid ? '' : 'invalid-input';
+    
     item.innerHTML = `
       <div class="proxy-header-row">
         <input type="radio" name="activeProxy" value="${proxy.id}" ${proxy.id === activeProxyId ? 'checked' : ''} class="proxy-radio-input">
@@ -95,14 +199,18 @@ function renderProxies(proxies, activeProxyId) {
         <button class="delete-btn-small" data-id="${proxy.id}" title="Удалить">✕</button>
       </div>
       <div class="proxy-config-row">
-        <input type="text" class="proxy-host" value="${proxy.host}" data-id="${proxy.id}" placeholder="IP адрес">
-        <input type="number" class="proxy-port" value="${proxy.port}" data-id="${proxy.id}" placeholder="Порт">
+        <input type="text" class="proxy-host ${hostClass}" value="${proxy.host}" data-id="${proxy.id}" placeholder="IP адрес или hostname" title="${isHostValid ? '' : 'Неверный формат IP или hostname'}">
+        <input type="number" class="proxy-port ${portClass}" value="${proxy.port}" data-id="${proxy.id}" placeholder="Порт" min="1" max="65535" title="${isPortValid ? '' : 'Порт должен быть от 1 до 65535'}">
         <select class="proxy-type" data-id="${proxy.id}">
           <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
           <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
           <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
           <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
         </select>
+      </div>
+      <div class="proxy-auth-row">
+        <input type="text" class="proxy-username" value="${proxy.username || ''}" data-id="${proxy.id}" placeholder="Логин (опционально)">
+        <input type="password" class="proxy-password" value="${proxy.password || ''}" data-id="${proxy.id}" placeholder="Пароль (опционально)">
       </div>
     `;
     proxiesList.appendChild(item);
@@ -111,33 +219,82 @@ function renderProxies(proxies, activeProxyId) {
   // Обработчики для прокси
   document.querySelectorAll('input[name="activeProxy"]').forEach(radio => {
     radio.addEventListener('change', () => {
-      chrome.storage.local.set({ activeProxyId: parseInt(radio.value) }, loadData);
+      chrome.storage.local.set({ activeProxyId: Number(radio.value) }, loadData);
     });
   });
   
   document.querySelectorAll('.proxy-name-input').forEach(input => {
-    input.addEventListener('change', () => updateProxy(parseInt(input.dataset.id), 'name', input.value));
+    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'name', input.value));
   });
   
   document.querySelectorAll('.proxy-host').forEach(input => {
-    input.addEventListener('change', () => updateProxy(parseInt(input.dataset.id), 'host', input.value));
+    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'host', input.value));
+    
+    // Валидация в реальном времени
+    input.addEventListener('input', () => {
+      const value = input.value.trim();
+      if (value === '' || isValidProxyHost(value)) {
+        input.classList.remove('invalid-input');
+        input.title = '';
+      } else {
+        input.classList.add('invalid-input');
+        input.title = 'Неверный формат IP или hostname';
+      }
+    });
   });
   
   document.querySelectorAll('.proxy-port').forEach(input => {
-    input.addEventListener('change', () => updateProxy(parseInt(input.dataset.id), 'port', parseInt(input.value)));
+    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'port', parseInt(input.value)));
+    
+    // Валидация в реальном времени
+    input.addEventListener('input', () => {
+      const value = input.value;
+      if (value === '' || isValidPort(value)) {
+        input.classList.remove('invalid-input');
+        input.title = '';
+      } else {
+        input.classList.add('invalid-input');
+        input.title = 'Порт должен быть от 1 до 65535';
+      }
+    });
   });
   
   document.querySelectorAll('.proxy-type').forEach(select => {
-    select.addEventListener('change', () => updateProxy(parseInt(select.dataset.id), 'type', select.value));
+    select.addEventListener('change', () => updateProxy(Number(select.dataset.id), 'type', select.value));
+  });
+  
+  document.querySelectorAll('.proxy-username').forEach(input => {
+    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'username', input.value));
+  });
+  
+  document.querySelectorAll('.proxy-password').forEach(input => {
+    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'password', input.value));
   });
   
   document.querySelectorAll('.delete-btn-small').forEach(btn => {
-    btn.addEventListener('click', () => deleteProxy(parseInt(btn.dataset.id)));
+    btn.addEventListener('click', () => deleteProxy(Number(btn.dataset.id)));
   });
 }
 
 // Обновление прокси
 function updateProxy(id, field, value) {
+  // Валидация перед сохранением
+  if (field === 'host') {
+    if (value && value.trim() && !isValidProxyHost(value)) {
+      alert('❌ Неверный формат IP адреса или hostname\n\nПримеры правильных значений:\n• 127.0.0.1\n• 192.168.1.1\n• proxy.example.com\n• localhost');
+      loadData(); // Перезагружаем данные для отмены изменения
+      return;
+    }
+  }
+  
+  if (field === 'port') {
+    if (!isValidPort(value)) {
+      alert('❌ Неверный порт\n\nПорт должен быть числом от 1 до 65535');
+      loadData(); // Перезагружаем данные для отмены изменения
+      return;
+    }
+  }
+  
   chrome.storage.local.get(['proxies'], (data) => {
     const proxies = data.proxies.map(p => p.id === id ? { ...p, [field]: value } : p);
     chrome.storage.local.set({ proxies }, loadData);
@@ -148,7 +305,7 @@ function updateProxy(id, field, value) {
 function deleteProxy(id) {
   chrome.storage.local.get(['proxies', 'activeProxyId'], (data) => {
     if (data.proxies.length <= 1) {
-      alert('Должен остаться хотя бы один прокси');
+      alert('Нельзя удалить последний прокси. Должен остаться хотя бы один.');
       return;
     }
     
@@ -161,9 +318,12 @@ function deleteProxy(id) {
     
     const proxies = data.proxies.filter(p => p.id !== id);
     const updates = { proxies };
+    
+    // Если удаляем активный прокси, переключаемся на первый
     if (data.activeProxyId === id) {
       updates.activeProxyId = proxies[0].id;
     }
+    
     chrome.storage.local.set(updates, loadData);
   });
 }
@@ -173,12 +333,14 @@ addProxyBtn.addEventListener('click', () => {
   chrome.storage.local.get(['proxies'], (data) => {
     const proxies = data.proxies || [];
     const newProxy = {
-      id: Date.now(),
+      id: generateUniqueId(),
       name: `Proxy ${proxies.length + 1}`,
       host: '127.0.0.1',
       port: 1080,
       type: 'SOCKS5',
-      enabled: true
+      enabled: true,
+      username: '',
+      password: ''
     };
     proxies.push(newProxy);
     chrome.storage.local.set({ proxies }, loadData);
@@ -187,49 +349,159 @@ addProxyBtn.addEventListener('click', () => {
 
 // Тест прокси
 testProxyBtn.addEventListener('click', () => {
-  proxyTestResult.style.display = 'block';
-  proxyTestResult.textContent = 'Проверка...';
+  proxyTestResult.style.display = 'flex';
+  const textSpan = proxyTestResult.querySelector('.test-result-text');
+  textSpan.textContent = 'Проверка...';
   proxyTestResult.className = 'proxy-test-result loading';
   
-  chrome.storage.local.get(['proxies', 'activeProxyId', 'proxyList'], (data) => {
+  chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
     const activeProxy = data.proxies?.find(p => p.id === data.activeProxyId);
+    const extensionEnabled = data.extensionEnabled !== false;
     
-    if (!activeProxy) {
-      proxyTestResult.textContent = '✗ Нет активного прокси';
+    if (!extensionEnabled) {
+      textSpan.textContent = '✗ Расширение выключено';
       proxyTestResult.className = 'proxy-test-result error';
       return;
     }
     
-    // Добавляем api.ipify.org в proxy list временно для теста
-    const proxyList = data.proxyList || [];
-    const testSite = { id: -1, value: 'api.ipify.org', enabled: true };
-    const tempProxyList = [...proxyList, testSite];
+    if (!activeProxy) {
+      textSpan.textContent = '✗ Нет активного прокси';
+      proxyTestResult.className = 'proxy-test-result error';
+      return;
+    }
     
-    chrome.storage.local.set({ proxyList: tempProxyList }, () => {
-      // Ждем применения конфигурации
-      setTimeout(() => {
-        fetch('https://api.ipify.org?format=json')
-          .then(res => res.json())
-          .then(result => {
-            // Убираем тестовый сайт
-            chrome.storage.local.set({ proxyList: proxyList }, () => {
-              proxyTestResult.textContent = `✓ IP через прокси: ${result.ip}`;
-              proxyTestResult.className = 'proxy-test-result success';
-            });
-          })
-          .catch(err => {
-            chrome.storage.local.set({ proxyList: proxyList }, () => {
-              proxyTestResult.textContent = `✗ Ошибка: ${err.message}`;
-              proxyTestResult.className = 'proxy-test-result error';
-            });
-          });
-      }, 500);
+    if (!activeProxy.host || !activeProxy.port || activeProxy.host.trim() === '') {
+      textSpan.textContent = `✗ Прокси "${activeProxy.name}" не настроен (укажите IP и порт)`;
+      proxyTestResult.className = 'proxy-test-result error';
+      return;
+    }
+    
+    chrome.runtime.sendMessage({ 
+      action: 'testSpecificProxy', 
+      proxyId: activeProxy.id 
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        textSpan.textContent = `✗ Ошибка: ${chrome.runtime.lastError.message}`;
+        proxyTestResult.className = 'proxy-test-result error';
+        return;
+      }
+      
+      if (response && response.success) {
+        textSpan.textContent = `✓ IP через прокси "${activeProxy.name}": ${response.ip}`;
+        proxyTestResult.className = 'proxy-test-result success';
+      } else {
+        const errorMsg = response?.error || 'Connection failed';
+        textSpan.textContent = `✗ Прокси "${activeProxy.name}" недоступен (${errorMsg})`;
+        proxyTestResult.className = 'proxy-test-result error';
+      }
     });
   });
 });
 
-// Рендер списка сайтов
+// Кнопка закрытия для proxy test
+proxyTestResult.querySelector('.test-result-close').addEventListener('click', () => {
+  proxyTestResult.style.display = 'none';
+});
+
+// Тест DNS утечек
+testDNSBtn.addEventListener('click', () => {
+  dnsTestResult.style.display = 'flex';
+  const textSpan = dnsTestResult.querySelector('.test-result-text');
+  textSpan.textContent = 'Проверка DNS утечек...';
+  dnsTestResult.className = 'dns-test-result loading';
+  
+  chrome.storage.local.get(['extensionEnabled'], (data) => {
+    const extensionEnabled = data.extensionEnabled !== false;
+    
+    if (!extensionEnabled) {
+      textSpan.textContent = '✗ Расширение выключено';
+      dnsTestResult.className = 'dns-test-result error';
+      return;
+    }
+    
+    chrome.runtime.sendMessage({ action: 'checkDNSLeak' }, (response) => {
+      if (response && response.success) {
+        if (response.isLeaking) {
+          textSpan.textContent = `⚠️ Утечка DNS! Реальный IP: ${response.realIP}`;
+          dnsTestResult.className = 'dns-test-result warning';
+        } else {
+          textSpan.textContent = `✓ DNS защищён | Прокси IP: ${response.proxyIP}`;
+          dnsTestResult.className = 'dns-test-result success';
+        }
+      } else {
+        textSpan.textContent = `✗ Ошибка: ${response?.error || 'Неизвестная ошибка'}`;
+        dnsTestResult.className = 'dns-test-result error';
+      }
+    });
+  });
+});
+
+// Кнопка закрытия для DNS test
+dnsTestResult.querySelector('.test-result-close').addEventListener('click', () => {
+  dnsTestResult.style.display = 'none';
+});
+
+// Состояние раскрытых групп
+const expandedGroups = new Set();
+
+// Группировка доменов по основному домену
+function groupDomainsByBase(sites) {
+  const groups = {};
+  
+  sites.forEach(site => {
+    const domain = site.value;
+    let baseDomain;
+    
+    // Определяем базовый домен
+    if (domain.startsWith('*.')) {
+      // *.google.com -> google.com
+      baseDomain = domain.substring(2);
+    } else if (domain.includes('.')) {
+      // subdomain.google.com -> google.com
+      // api.github.com -> github.com
+      const parts = domain.split('.');
+      
+      // Для доменов с 2+ частями берём последние 2 части
+      if (parts.length >= 2) {
+        // Исключения для доменов типа .co.uk, .com.au и т.д.
+        const twoLevelTLDs = ['co.uk', 'com.au', 'co.jp', 'com.br', 'co.in', 'co.za'];
+        const lastTwo = parts.slice(-2).join('.');
+        const lastThree = parts.length >= 3 ? parts.slice(-3).join('.') : lastTwo;
+        
+        if (twoLevelTLDs.includes(lastTwo)) {
+          baseDomain = lastThree;
+        } else {
+          baseDomain = lastTwo;
+        }
+      } else {
+        baseDomain = domain;
+      }
+    } else {
+      // Одиночное слово (localhost, etc)
+      baseDomain = domain;
+    }
+    
+    if (!groups[baseDomain]) {
+      groups[baseDomain] = {
+        base: baseDomain,
+        sites: []
+      };
+    }
+    
+    groups[baseDomain].sites.push(site);
+  });
+  
+  // Сортируем группы по имени базового домена
+  return Object.values(groups).sort((a, b) => a.base.localeCompare(b.base));
+}
+
+// Рендер списка сайтов с группировкой
 function renderSites(sites, container, listType) {
+  if (!container) {
+    console.error('renderSites: container is null for', listType);
+    return;
+  }
+  
   if (sites.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -240,31 +512,154 @@ function renderSites(sites, container, listType) {
     return;
   }
   
+  // Группируем домены
+  const groups = groupDomainsByBase(sites);
+  
   container.innerHTML = '';
-  sites.forEach(site => {
-    const item = document.createElement('div');
-    item.className = 'site-item';
-    item.innerHTML = `
-      <div class="site-name">${site.value}</div>
-      <div class="site-actions">
-        <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${site.id}" data-list="${listType}"></div>
-        <button class="delete-btn" data-id="${site.id}" data-list="${listType}">✕</button>
-      </div>
-    `;
-    container.appendChild(item);
+  
+  groups.forEach(group => {
+    const hasMultiple = group.sites.length > 1;
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'domain-group';
+    
+    if (hasMultiple) {
+      // Группа с несколькими доменами
+      // Ищем основной домен (без поддоменов и без wildcard)
+      const mainSite = group.sites.find(s => s.value === group.base) || group.sites[0];
+      const otherSites = group.sites.filter(s => s !== mainSite);
+      
+      // Подсчитываем включенные и выключенные
+      const enabledCount = group.sites.filter(s => s.enabled).length;
+      const disabledCount = group.sites.length - enabledCount;
+      
+      // Проверяем, была ли группа раскрыта
+      const isExpanded = expandedGroups.has(group.base);
+      
+      groupDiv.innerHTML = `
+        <div class="domain-group-header" data-group="${group.base}">
+          <div class="expand-icon">${isExpanded ? '▼' : '▶'}</div>
+          <div class="site-name">
+            ${mainSite.value}
+            <span class="subdomain-count enabled">${enabledCount}</span>
+            ${disabledCount > 0 ? `<span class="subdomain-count disabled">${disabledCount}</span>` : ''}
+          </div>
+          <div class="site-actions">
+            <div class="toggle-switch ${mainSite.enabled ? 'active' : ''}" data-id="${mainSite.id}" data-list="${listType}"></div>
+            <button class="delete-btn" data-id="${mainSite.id}" data-list="${listType}">✕</button>
+          </div>
+        </div>
+        <div class="domain-group-subdomains" style="display: ${isExpanded ? 'block' : 'none'};">
+          ${otherSites.map(site => `
+            <div class="site-item subdomain-item">
+              <div class="site-name">${site.value}</div>
+              <div class="site-actions">
+                <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${site.id}" data-list="${listType}"></div>
+                <button class="delete-btn" data-id="${site.id}" data-list="${listType}">✕</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      
+      // Добавляем класс expanded если группа раскрыта
+      if (isExpanded) {
+        groupDiv.querySelector('.domain-group-header').classList.add('expanded');
+      }
+    } else {
+      // Одиночный домен без группировки
+      const site = group.sites[0];
+      groupDiv.innerHTML = `
+        <div class="site-item">
+          <div class="site-name">${site.value}</div>
+          <div class="site-actions">
+            <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${site.id}" data-list="${listType}"></div>
+            <button class="delete-btn" data-id="${site.id}" data-list="${listType}">✕</button>
+          </div>
+        </div>
+      `;
+    }
+    
+    container.appendChild(groupDiv);
   });
   
-  // Обработчики
-  container.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', () => deleteSite(parseInt(btn.dataset.id), btn.dataset.list));
-  });
-  
-  container.querySelectorAll('.toggle-switch').forEach(toggle => {
-    toggle.addEventListener('click', () => {
-      const enabled = !toggle.classList.contains('active');
-      toggleSite(parseInt(toggle.dataset.id), toggle.dataset.list, enabled);
+  // Обработчики для раскрытия групп
+  container.querySelectorAll('.domain-group-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      // Игнорируем клики по кнопкам и toggle
+      if (e.target.closest('.site-actions') || 
+          e.target.classList.contains('toggle-switch') ||
+          e.target.classList.contains('delete-btn')) {
+        return;
+      }
+      
+      const groupName = header.dataset.group;
+      const subdomains = header.nextElementSibling;
+      const icon = header.querySelector('.expand-icon');
+      
+      if (subdomains && subdomains.classList.contains('domain-group-subdomains')) {
+        if (subdomains.style.display === 'none') {
+          subdomains.style.display = 'block';
+          icon.textContent = '▼';
+          header.classList.add('expanded');
+          expandedGroups.add(groupName);
+        } else {
+          subdomains.style.display = 'none';
+          icon.textContent = '▶';
+          header.classList.remove('expanded');
+          expandedGroups.delete(groupName);
+        }
+      }
     });
   });
+  
+  // Обработчики для кнопок
+  const deleteButtons = container.querySelectorAll('.delete-btn');
+  const toggleSwitches = container.querySelectorAll('.toggle-switch');
+  
+  deleteButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      deleteSite(Number(btn.dataset.id), btn.dataset.list);
+    });
+  });
+  
+  toggleSwitches.forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const enabled = !toggle.classList.contains('active');
+      toggleSite(Number(toggle.dataset.id), toggle.dataset.list, enabled);
+    });
+  });
+}
+
+// Валидация домена для списков
+function isValidDomain(domain) {
+  if (!domain || typeof domain !== 'string') return false;
+  
+  const trimmed = domain.trim();
+  
+  // Разрешаем wildcard паттерны
+  if (trimmed.startsWith('*.')) {
+    const withoutWildcard = trimmed.substring(2);
+    return isValidHostname(withoutWildcard);
+  }
+  
+  // Разрешаем паттерны с *
+  if (trimmed.includes('*')) {
+    // Упрощённая проверка для wildcard паттернов
+    const withoutStars = trimmed.replace(/\*/g, 'a');
+    return /^[a-zA-Z0-9.*-]+$/.test(withoutStars);
+  }
+  
+  // Разрешаем URL паттерны с /
+  if (trimmed.includes('/')) {
+    return true; // URL паттерны проверяем упрощённо
+  }
+  
+  // Обычный домен или IP
+  return isValidHostname(trimmed) || isValidIP(trimmed);
 }
 
 // Добавление в список
@@ -282,6 +677,12 @@ function addToList(value, listKey) {
     value = '*' + value;
   }
   
+  // Валидация домена
+  if (!isValidDomain(value)) {
+    alert('❌ Неверный формат домена\n\nПримеры правильных значений:\n• google.com\n• *.google.com\n• 192.168.1.1\n• localhost\n• *.ru');
+    return;
+  }
+  
   chrome.storage.local.get([listKey], (data) => {
     const list = data[listKey] || [];
     
@@ -291,7 +692,7 @@ function addToList(value, listKey) {
     }
     
     list.push({
-      id: Date.now(),
+      id: generateUniqueId(),
       value: value,
       enabled: true
     });
@@ -303,20 +704,60 @@ function addToList(value, listKey) {
 addToProxyListBtn.addEventListener('click', () => {
   addToList(proxyListValue.value, 'proxyList');
   proxyListValue.value = '';
+  proxyListValue.classList.remove('invalid-input');
 });
 
 proxyListValue.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') addToProxyListBtn.click();
 });
 
+// Валидация в реальном времени для proxy list
+proxyListValue.addEventListener('input', () => {
+  let value = proxyListValue.value.trim();
+  if (value) {
+    value = value.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (value.startsWith('.') && !value.startsWith('*.')) {
+      value = '*' + value;
+    }
+    
+    if (isValidDomain(value)) {
+      proxyListValue.classList.remove('invalid-input');
+    } else {
+      proxyListValue.classList.add('invalid-input');
+    }
+  } else {
+    proxyListValue.classList.remove('invalid-input');
+  }
+});
+
 // Добавление в direct list
 addToDirectListBtn.addEventListener('click', () => {
   addToList(directListValue.value, 'directList');
   directListValue.value = '';
+  directListValue.classList.remove('invalid-input');
 });
 
 directListValue.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') addToDirectListBtn.click();
+});
+
+// Валидация в реальном времени для direct list
+directListValue.addEventListener('input', () => {
+  let value = directListValue.value.trim();
+  if (value) {
+    value = value.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (value.startsWith('.') && !value.startsWith('*.')) {
+      value = '*' + value;
+    }
+    
+    if (isValidDomain(value)) {
+      directListValue.classList.remove('invalid-input');
+    } else {
+      directListValue.classList.add('invalid-input');
+    }
+  } else {
+    directListValue.classList.remove('invalid-input');
+  }
 });
 
 // Удаление сайта
@@ -333,6 +774,57 @@ function toggleSite(id, listKey, enabled) {
     const list = data[listKey].map(s => s.id === id ? { ...s, enabled } : s);
     chrome.storage.local.set({ [listKey]: list }, loadData);
   });
+}
+
+// Поиск по списку
+function filterSites(sites, searchQuery) {
+  if (!searchQuery) return sites;
+  
+  const query = searchQuery.toLowerCase().trim();
+  return sites.filter(site => site.value.toLowerCase().includes(query));
+}
+
+// Обновление счётчика результатов поиска
+function updateSearchCount(total, filtered, countElement) {
+  if (countElement) {
+    if (filtered < total) {
+      countElement.textContent = `${filtered} из ${total}`;
+      countElement.style.display = 'block';
+    } else {
+      countElement.textContent = '';
+      countElement.style.display = 'none';
+    }
+  }
+}
+
+// Поиск в proxy list с debounce
+if (proxyListSearch) {
+  const debouncedProxySearch = debounce(() => {
+    const searchQuery = proxyListSearch.value;
+    chrome.storage.local.get(['proxyList'], (data) => {
+      const allSites = data.proxyList || [];
+      const filtered = filterSites(allSites, searchQuery);
+      renderSites(filtered, proxyListSites, 'proxyList');
+      updateSearchCount(allSites.length, filtered.length, proxyListCount);
+    });
+  }, 300);
+  
+  proxyListSearch.addEventListener('input', debouncedProxySearch);
+}
+
+// Поиск в direct list с debounce
+if (directListSearch) {
+  const debouncedDirectSearch = debounce(() => {
+    const searchQuery = directListSearch.value;
+    chrome.storage.local.get(['directList'], (data) => {
+      const allSites = data.directList || [];
+      const filtered = filterSites(allSites, searchQuery);
+      renderSites(filtered, directListSites, 'directList');
+      updateSearchCount(allSites.length, filtered.length, directListCount);
+    });
+  }, 300);
+  
+  directListSearch.addEventListener('input', debouncedDirectSearch);
 }
 
 // Полный экспорт конфигурации
@@ -490,6 +982,40 @@ if (logFilterElement) {
   logFilterElement.addEventListener('change', loadLogs);
 }
 
+// Экспорт логов
+const exportLogsBtn = document.getElementById('exportLogs');
+if (exportLogsBtn) {
+  exportLogsBtn.addEventListener('click', () => {
+    chrome.storage.local.get(['routeLogs'], (data) => {
+      const logs = data.routeLogs || '';
+      
+      if (!logs || logs.trim() === '') {
+        alert('Логи пусты, нечего экспортировать');
+        return;
+      }
+      
+      // Создаём имя файла с текущей датой и временем
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const filename = `proxy-logs-${year}-${month}-${day}-${hours}-${minutes}-${seconds}.txt`;
+      
+      // Создаём blob и скачиваем
+      const blob = new Blob([logs], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+}
+
 // Очистка логов
 clearLogsBtn.addEventListener('click', () => {
   if (confirm('Очистить все логи?')) {
@@ -498,6 +1024,47 @@ clearLogsBtn.addEventListener('click', () => {
     });
   }
 });
+
+// Главный переключатель расширения
+function updateMainToggle(enabled) {
+  if (mainToggle) {
+    if (enabled) {
+      mainToggle.classList.add('active');
+    } else {
+      mainToggle.classList.remove('active');
+    }
+  }
+  if (extensionStatusBadge) {
+    if (enabled) {
+      extensionStatusBadge.textContent = 'Включено';
+      extensionStatusBadge.classList.remove('disabled');
+    } else {
+      extensionStatusBadge.textContent = 'Выключено';
+      extensionStatusBadge.classList.add('disabled');
+    }
+  }
+}
+
+if (mainToggle) {
+  mainToggle.addEventListener('click', () => {
+    chrome.storage.local.get(['extensionEnabled'], (data) => {
+      const currentState = data.extensionEnabled !== false;
+      const newState = !currentState;
+      
+      chrome.storage.local.set({ extensionEnabled: newState }, () => {
+        updateMainToggle(newState);
+        
+        // Показываем уведомление
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'logo.png',
+          title: 'Proxy Manager',
+          message: newState ? '✓ Расширение включено' : '✗ Расширение выключено'
+        });
+      });
+    });
+  });
+}
 
 // Инициализация
 loadData();

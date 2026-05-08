@@ -1,13 +1,28 @@
+// Генератор уникальных ID
+function generateUniqueId() {
+  return Date.now() + Math.random();
+}
+
 // Инициализация при установке
 chrome.runtime.onInstalled.addListener((details) => {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate', 'extensionEnabled'], (data) => {
+    // Создаём дефолтный прокси если его нет
+    const defaultProxies = data.proxies || [
+      { id: generateUniqueId(), name: 'Default', host: '127.0.0.1', port: 1080, type: 'SOCKS5', enabled: true }
+    ];
+    
+    // Если activeProxyId не установлен или не существует в списке, берём ID первого прокси
+    let activeProxyId = data.activeProxyId;
+    if (!activeProxyId || !defaultProxies.find(p => p.id === activeProxyId)) {
+      activeProxyId = defaultProxies[0].id;
+    }
+    
     const defaults = {
       proxyList: data.proxyList || [],
       directList: data.directList || [],
-      proxies: data.proxies || [
-        { id: Date.now(), name: 'Default', host: '127.0.0.1', port: 1080, type: 'SOCKS5', enabled: true }
-      ],
-      activeProxyId: data.activeProxyId || Date.now()
+      proxies: defaultProxies,
+      activeProxyId: activeProxyId,
+      extensionEnabled: data.extensionEnabled !== false
     };
     
     // Сохраняем дату установки (только при первой установке)
@@ -22,15 +37,27 @@ chrome.runtime.onInstalled.addListener((details) => {
     }
     
     chrome.storage.local.set(defaults);
-    const activeProxy = defaults.proxies.find(p => p.id === defaults.activeProxyId) || defaults.proxies[0];
-    applyProxyConfig(defaults.proxyList, defaults.directList, defaults.proxies, activeProxy);
+    const activeProxy = defaults.proxies.find(p => p.id === defaults.activeProxyId);
+    applyProxyConfig(defaults.proxyList, defaults.directList, defaults.proxies, activeProxy, defaults.extensionEnabled);
   });
-  
-  // Запускаем автоочистку логов
-  startLogCleanup();
   
   // Создаём контекстное меню
   createContextMenu();
+});
+
+// Инициализация при запуске браузера
+chrome.runtime.onStartup.addListener(() => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
+    const activeProxy = data.proxies?.find(p => p.id === data.activeProxyId);
+    const extensionEnabled = data.extensionEnabled !== false;
+    applyProxyConfig(
+      data.proxyList || [], 
+      data.directList || [],
+      data.proxies || [],
+      activeProxy,
+      extensionEnabled
+    );
+  });
 });
 
 // Создание контекстного меню
@@ -66,7 +93,6 @@ function createContextMenu() {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   let domain = '';
   
-  // Получаем домен из ссылки или текущей страницы
   if (info.linkUrl) {
     domain = new URL(info.linkUrl).hostname;
   } else if (info.pageUrl) {
@@ -83,7 +109,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     switch (info.menuItemId) {
       case 'addToProxyList':
         if (!proxyList.find(s => s.value === domain)) {
-          proxyList.push({ id: Date.now(), value: domain, enabled: true });
+          proxyList.push({ id: generateUniqueId(), value: domain, enabled: true });
           chrome.storage.local.set({ proxyList }, () => {
             chrome.notifications.create({
               type: 'basic',
@@ -92,7 +118,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
               message: `${domain} добавлен в список прокси`
             });
             
-            // Автодобавление связанных доменов
             if (autoAddRelated && tab) {
               addRelatedDomains(tab.id, 'proxyList');
             }
@@ -102,7 +127,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         
       case 'addToDirectList':
         if (!directList.find(s => s.value === domain)) {
-          directList.push({ id: Date.now(), value: domain, enabled: true });
+          directList.push({ id: generateUniqueId(), value: domain, enabled: true });
           chrome.storage.local.set({ directList }, () => {
             chrome.notifications.create({
               type: 'basic',
@@ -111,7 +136,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
               message: `${domain} добавлен в список напрямую`
             });
             
-            // Автодобавление связанных доменов
             if (autoAddRelated && tab) {
               addRelatedDomains(tab.id, 'directList');
             }
@@ -146,9 +170,7 @@ function addRelatedDomains(tabId, listKey) {
     
     domains.forEach(domain => {
       if (!list.find(s => s.value === domain)) {
-        // Генерируем уникальный ID
-        const uniqueId = Date.now() + addedCount;
-        list.push({ id: uniqueId, value: domain, enabled: true });
+        list.push({ id: generateUniqueId(), value: domain, enabled: true });
         addedCount++;
       }
     });
@@ -166,11 +188,18 @@ function addRelatedDomains(tabId, listKey) {
   });
 }
 
-// Автоматическая очистка логов каждые 3 часа
+// Автоматическая очистка логов (запускается только один раз)
+let logCleanupInterval = null;
+
 function startLogCleanup() {
-  const THREE_HOURS = 3 * 60 * 60 * 1000; // 3 часа в миллисекундах
+  // Предотвращаем создание нескольких интервалов
+  if (logCleanupInterval) {
+    clearInterval(logCleanupInterval);
+  }
   
-  setInterval(() => {
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+  
+  logCleanupInterval = setInterval(() => {
     chrome.storage.local.set({ routeLogs: '' }, () => {
       console.log('Логи автоматически очищены');
       logRoute('CONFIG', 'Auto-cleanup', 'Логи очищены автоматически');
@@ -178,34 +207,51 @@ function startLogCleanup() {
   }, THREE_HOURS);
 }
 
-// Запускаем очистку при загрузке service worker
+// Запускаем очистку только один раз
 startLogCleanup();
 
 // Слушаем изменения в storage
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.proxyList || changes.directList || changes.proxies || changes.activeProxyId) {
-    chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
-      const activeProxy = data.proxies?.find(p => p.id === data.activeProxyId) || data.proxies?.[0];
+  if (changes.proxyList || changes.directList || changes.proxies || changes.activeProxyId || changes.extensionEnabled) {
+    chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
+      const activeProxy = data.proxies?.find(p => p.id === data.activeProxyId);
+      const extensionEnabled = data.extensionEnabled !== false;
       applyProxyConfig(
         data.proxyList || [], 
         data.directList || [],
         data.proxies || [],
-        activeProxy
+        activeProxy,
+        extensionEnabled
       );
     });
   }
 });
 
+// Общая функция проверки соответствия домена паттерну
+function matchesPattern(host, pattern, url = '') {
+  pattern = pattern.toLowerCase().trim();
+  if (pattern.startsWith('.')) pattern = pattern.substring(1);
+  
+  if (pattern.startsWith('*.')) {
+    const domain = pattern.substring(2);
+    return host.endsWith('.' + domain) || host === domain;
+  } else if (pattern.includes('*')) {
+    const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
+    return new RegExp(`^${regexPattern}$`).test(host);
+  } else if (pattern.includes('/')) {
+    return url.toLowerCase().includes(pattern);
+  } else {
+    return host === pattern || host.endsWith('.' + pattern);
+  }
+}
+
 // Генерация PAC скрипта
-function generatePAC(proxyList, directList, proxies, activeProxy) {
+function generatePAC(proxyList, directList, activeProxy) {
   if (!activeProxy) {
     return `function FindProxyForURL(url, host) { return "DIRECT"; }`;
   }
   
-  // Формируем строку с fallback прокси
-  const enabledProxies = proxies.filter(p => p.enabled);
-  const proxyStrings = enabledProxies.map(p => `${p.type} ${p.host}:${p.port}`);
-  const proxyString = proxyStrings.length > 0 ? proxyStrings.join('; ') + '; DIRECT' : 'DIRECT';
+  const proxyString = `${activeProxy.type} ${activeProxy.host}:${activeProxy.port}`;
   
   const enabledProxyList = proxyList.filter(s => s.enabled);
   const enabledDirectList = directList.filter(s => s.enabled);
@@ -218,8 +264,7 @@ function generatePAC(proxyList, directList, proxies, activeProxy) {
     if (pattern.startsWith('.')) pattern = pattern.substring(1);
     
     if (pattern.startsWith('*.')) {
-      // *.domain -> проверяем что заканчивается на .domain
-      const domain = pattern.substring(2); // убираем *.
+      const domain = pattern.substring(2);
       pacScript += `  if (host.endsWith(".${domain}") || host === "${domain}") return "DIRECT";\n`;
     } else if (pattern.includes('*')) {
       const regexPattern = pattern.replace(/\./g, '\\\\.').replace(/\*/g, '.*');
@@ -238,8 +283,7 @@ function generatePAC(proxyList, directList, proxies, activeProxy) {
     if (pattern.startsWith('.')) pattern = pattern.substring(1);
     
     if (pattern.startsWith('*.')) {
-      // *.domain -> проверяем что заканчивается на .domain
-      const domain = pattern.substring(2); // убираем *.
+      const domain = pattern.substring(2);
       pacScript += `  if (host.endsWith(".${domain}") || host === "${domain}") return "${proxyString}";\n`;
     } else if (pattern.includes('*')) {
       const regexPattern = pattern.replace(/\./g, '\\\\.').replace(/\*/g, '.*');
@@ -252,23 +296,40 @@ function generatePAC(proxyList, directList, proxies, activeProxy) {
     }
   });
   
-  // По умолчанию - напрямую
   pacScript += `  return "DIRECT";\n}`;
   
   return pacScript;
 }
 
 // Применение конфигурации прокси
-function applyProxyConfig(proxyList, directList, proxies, activeProxy) {
-  if (!activeProxy) {
+function applyProxyConfig(proxyList, directList, proxies, activeProxy, extensionEnabled = true) {
+  if (!extensionEnabled) {
     chrome.proxy.settings.set(
       { value: { mode: 'direct' }, scope: 'regular' },
-      () => logRoute('CONFIG', 'error', 'No active proxy')
+      () => logRoute('CONFIG', 'Disabled', 'Extension is turned off - using DIRECT connection')
     );
     return;
   }
   
-  const pacScript = generatePAC(proxyList, directList, proxies, activeProxy);
+  if (!activeProxy) {
+    console.warn('No active proxy selected, using DIRECT');
+    chrome.proxy.settings.set(
+      { value: { mode: 'direct' }, scope: 'regular' },
+      () => logRoute('CONFIG', 'error', 'No active proxy selected - using DIRECT')
+    );
+    return;
+  }
+  
+  if (!activeProxy.host || !activeProxy.port || activeProxy.host.trim() === '') {
+    console.warn(`Invalid proxy configuration for "${activeProxy.name}": missing host or port, using DIRECT`);
+    chrome.proxy.settings.set(
+      { value: { mode: 'direct' }, scope: 'regular' },
+      () => logRoute('CONFIG', 'error', `Invalid proxy "${activeProxy.name}" (missing host or port) - using DIRECT`)
+    );
+    return;
+  }
+  
+  const pacScript = generatePAC(proxyList, directList, activeProxy);
   
   console.log('=== Generated PAC script ===');
   console.log(pacScript);
@@ -285,7 +346,7 @@ function applyProxyConfig(proxyList, directList, proxies, activeProxy) {
     { value: config, scope: 'regular' },
     () => {
       if (chrome.runtime.lastError) {
-        console.error('Proxy error:', chrome.runtime.lastError.message || JSON.stringify(chrome.runtime.lastError));
+        console.error('Proxy error:', chrome.runtime.lastError.message);
         logRoute('ERROR', 'Proxy config failed', chrome.runtime.lastError.message);
       } else {
         const proxyInfo = `${activeProxy.type} ${activeProxy.host}:${activeProxy.port}`;
@@ -306,7 +367,6 @@ function logRoute(type, action, details) {
     let logs = data.routeLogs || '';
     logs += logEntry;
     
-    // Ограничиваем размер лога (последние 50000 символов)
     if (logs.length > 50000) {
       logs = logs.slice(-50000);
     }
@@ -315,38 +375,29 @@ function logRoute(type, action, details) {
   });
 }
 
-// Нормализация доменов (убираем динамические части)
+// Нормализация доменов
 function normalizeDomain(domain) {
-  // Убираем числовые префиксы типа rr4---, s1-, cdn123-
-  // rr4---sn-aigzrnze.googlevideo.com -> *.googlevideo.com
-  // s1-cdn.example.com -> *.example.com
-  
-  // Паттерны динамических поддоменов
   const dynamicPatterns = [
-    /^[a-z0-9]+-*[a-z0-9]*---/i,  // rr4---, s1---
-    /^[a-z]+\d+[a-z]*-/i,          // cdn123-, s1-, r2-
-    /^\d+[a-z]*-/i,                // 123-, 1a-
-    /^[a-z]\d+-/i                  // r1-, s2-
+    /^[a-z0-9]+-*[a-z0-9]*---/i,
+    /^[a-z]+\d+[a-z]*-/i,
+    /^\d+[a-z]*-/i,
+    /^[a-z]\d+-/i
   ];
   
   const parts = domain.split('.');
   
-  // Если меньше 3 частей, возвращаем как есть
   if (parts.length < 3) {
     return domain;
   }
   
-  // Проверяем первую часть на динамический паттерн
   const firstPart = parts[0];
   const isDynamic = dynamicPatterns.some(pattern => pattern.test(firstPart));
   
   if (isDynamic) {
-    // Убираем первую часть и добавляем wildcard
     const baseDomain = parts.slice(1).join('.');
     return `*.${baseDomain}`;
   }
   
-  // Проверяем на CDN паттерны (cdn1, cdn2, etc)
   if (/^(cdn|cache|edge|node|server)\d+$/i.test(firstPart)) {
     const baseDomain = parts.slice(1).join('.');
     return `*.${baseDomain}`;
@@ -356,14 +407,14 @@ function normalizeDomain(domain) {
 }
 
 // Отслеживание связанных доменов для каждой вкладки
-const tabDomains = new Map(); // tabId -> Set of domains
+const tabDomains = new Map();
 
 // Статистика активности
 const activityStats = {
   proxy: 0,
   direct: 0,
-  hourly: [], // Массив для графика по минутам
-  domains: {} // Счётчик по доменам
+  hourly: [],
+  domains: {}
 };
 
 // Инициализация статистики
@@ -372,7 +423,6 @@ function initStats() {
     if (data.activityStats) {
       Object.assign(activityStats, data.activityStats);
     }
-    // Инициализируем массив для последнего часа (60 минут)
     if (!activityStats.hourly || activityStats.hourly.length === 0) {
       activityStats.hourly = Array(60).fill(0).map(() => ({ proxy: 0, direct: 0, timestamp: Date.now() }));
     }
@@ -392,7 +442,6 @@ function updateStats(routeType, domain) {
     activityStats.direct++;
   }
   
-  // Обновляем счётчик по доменам
   if (!activityStats.domains[domain]) {
     activityStats.domains[domain] = { proxy: 0, direct: 0 };
   }
@@ -402,28 +451,24 @@ function updateStats(routeType, domain) {
     activityStats.domains[domain].direct++;
   }
   
-  // Обновляем данные для графика (текущая минута)
   const now = Date.now();
   const currentMinute = Math.floor(now / 60000);
   const lastEntry = activityStats.hourly[activityStats.hourly.length - 1];
   const lastMinute = Math.floor(lastEntry.timestamp / 60000);
   
   if (currentMinute === lastMinute) {
-    // Та же минута - обновляем
     if (routeType === 'PROXY') {
       lastEntry.proxy++;
     } else {
       lastEntry.direct++;
     }
   } else {
-    // Новая минута - добавляем запись и удаляем старую
     activityStats.hourly.push({
       proxy: routeType === 'PROXY' ? 1 : 0,
       direct: routeType === 'DIRECT' ? 1 : 0,
       timestamp: now
     });
     
-    // Оставляем только последние 60 минут
     if (activityStats.hourly.length > 60) {
       activityStats.hourly.shift();
     }
@@ -441,18 +486,23 @@ chrome.webRequest.onBeforeRequest.addListener(
       const url = new URL(details.url);
       const host = url.hostname;
       
-      // Отслеживаем все домены для вкладки
+      // Отслеживаем все домены для вкладки с ограничением размера
       if (details.tabId >= 0) {
         if (!tabDomains.has(details.tabId)) {
           tabDomains.set(details.tabId, new Set());
         }
-        // Нормализуем домен перед добавлением
         const normalizedDomain = normalizeDomain(host);
-        tabDomains.get(details.tabId).add(normalizedDomain);
+        const domains = tabDomains.get(details.tabId);
+        domains.add(normalizedDomain);
+        
+        // Ограничиваем размер Set (максимум 100 доменов на вкладку)
+        if (domains.size > 100) {
+          const firstItem = domains.values().next().value;
+          domains.delete(firstItem);
+        }
       }
       
       if (details.type === 'main_frame' || details.type === 'sub_frame' || details.type === 'xmlhttprequest') {
-        
         chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId'], (data) => {
           const proxyList = data.proxyList || [];
           const directList = data.directList || [];
@@ -468,70 +518,20 @@ chrome.webRequest.onBeforeRequest.addListener(
             
             // Проверяем Direct список (приоритет)
             for (let site of enabledDirectList) {
-              let pattern = site.value.toLowerCase().trim();
-              if (pattern.startsWith('.')) pattern = pattern.substring(1);
-              
-              if (pattern.startsWith('*.')) {
-                const domain = pattern.substring(2);
-                if (host.endsWith('.' + domain) || host === domain) {
-                  matchedSite = pattern;
-                  routeType = 'DIRECT';
-                  break;
-                }
-              } else if (pattern.includes('*')) {
-                const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
-                if (new RegExp(`^${regexPattern}$`).test(host)) {
-                  matchedSite = pattern;
-                  routeType = 'DIRECT';
-                  break;
-                }
-              } else if (pattern.includes('/')) {
-                if (details.url.toLowerCase().includes(pattern)) {
-                  matchedSite = pattern;
-                  routeType = 'DIRECT';
-                  break;
-                }
-              } else {
-                if (host === pattern || host.endsWith('.' + pattern)) {
-                  matchedSite = pattern;
-                  routeType = 'DIRECT';
-                  break;
-                }
+              if (matchesPattern(host, site.value, details.url)) {
+                matchedSite = site.value;
+                routeType = 'DIRECT';
+                break;
               }
             }
             
             // Если не в Direct, проверяем Proxy список
             if (!matchedSite) {
               for (let site of enabledProxyList) {
-                let pattern = site.value.toLowerCase().trim();
-                if (pattern.startsWith('.')) pattern = pattern.substring(1);
-                
-                if (pattern.startsWith('*.')) {
-                  const domain = pattern.substring(2);
-                  if (host.endsWith('.' + domain) || host === domain) {
-                    matchedSite = pattern;
-                    routeType = 'PROXY';
-                    break;
-                  }
-                } else if (pattern.includes('*')) {
-                  const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
-                  if (new RegExp(`^${regexPattern}$`).test(host)) {
-                    matchedSite = pattern;
-                    routeType = 'PROXY';
-                    break;
-                  }
-                } else if (pattern.includes('/')) {
-                  if (details.url.toLowerCase().includes(pattern)) {
-                    matchedSite = pattern;
-                    routeType = 'PROXY';
-                    break;
-                  }
-                } else {
-                  if (host === pattern || host.endsWith('.' + pattern)) {
-                    matchedSite = pattern;
-                    routeType = 'PROXY';
-                    break;
-                  }
+                if (matchesPattern(host, site.value, details.url)) {
+                  matchedSite = site.value;
+                  routeType = 'PROXY';
+                  break;
                 }
               }
             }
@@ -541,7 +541,6 @@ chrome.webRequest.onBeforeRequest.addListener(
             ? `${activeProxy.type} ${activeProxy.host}:${activeProxy.port}`
             : 'DIRECT';
           
-          // Логируем только если есть совпадение
           if (matchedSite) {
             logRoute('REQUEST', routeType, `${host} -> ${proxyInfo} (matched: ${matchedSite})`);
             updateStats(routeType, host);
@@ -560,6 +559,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabDomains.delete(tabId);
 });
 
+// Очистка данных при навигации (предотвращение утечки памяти)
+if (chrome.webNavigation) {
+  chrome.webNavigation.onCommitted.addListener((details) => {
+    if (details.frameId === 0) {
+      tabDomains.delete(details.tabId);
+    }
+  });
+}
+
 // API для получения связанных доменов текущей вкладки
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'getRelatedDomains') {
@@ -570,7 +578,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         const mainHost = mainUrl.hostname;
         
         if (domains) {
-          // Фильтруем домены: убираем основной и сортируем
           const relatedDomains = Array.from(domains)
             .filter(d => d !== mainHost)
             .sort();
@@ -589,7 +596,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         sendResponse({ mainDomain: null, relatedDomains: [] });
       }
     });
-    return true; // Асинхронный ответ
+    return true;
   }
   
   if (request.action === 'getStats') {
@@ -604,6 +611,98 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     activityStats.hourly = Array(60).fill(0).map(() => ({ proxy: 0, direct: 0, timestamp: Date.now() }));
     saveStats();
     sendResponse({ success: true });
+    return true;
+  }
+  
+  if (request.action === 'testSpecificProxy') {
+    chrome.storage.local.get(['proxies', 'proxyList', 'directList'], (data) => {
+      const proxyToTest = data.proxies.find(p => p.id === request.proxyId);
+      
+      if (!proxyToTest) {
+        sendResponse({ success: false, error: 'Proxy not found' });
+        return;
+      }
+      
+      const originalList = data.proxyList || [];
+      const originalDirectList = data.directList || [];
+      
+      const testProxyString = `${proxyToTest.type} ${proxyToTest.host}:${proxyToTest.port}`;
+      const testPAC = `function FindProxyForURL(url, host) {
+        if (host === "api.ipify.org") return "${testProxyString}";
+        return "DIRECT";
+      }`;
+      
+      chrome.proxy.settings.set({
+        value: {
+          mode: 'pac_script',
+          pacScript: { data: testPAC }
+        },
+        scope: 'regular'
+      }, () => {
+        setTimeout(() => {
+          fetch('https://api.ipify.org?format=json', { 
+            signal: AbortSignal.timeout(15000) 
+          })
+            .then(res => res.json())
+            .then(result => {
+              chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (restoreData) => {
+                const activeProxy = restoreData.proxies?.find(p => p.id === restoreData.activeProxyId);
+                const extensionEnabled = restoreData.extensionEnabled !== false;
+                applyProxyConfig(originalList, originalDirectList, restoreData.proxies, activeProxy, extensionEnabled);
+                sendResponse({ success: true, ip: result.ip });
+              });
+            })
+            .catch(err => {
+              chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (restoreData) => {
+                const activeProxy = restoreData.proxies?.find(p => p.id === restoreData.activeProxyId);
+                const extensionEnabled = restoreData.extensionEnabled !== false;
+                applyProxyConfig(originalList, originalDirectList, restoreData.proxies, activeProxy, extensionEnabled);
+                sendResponse({ success: false, error: err.message });
+              });
+            });
+        }, 1000);
+      });
+    });
+    
+    return true;
+  }
+  
+  if (request.action === 'checkDNSLeak') {
+    chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
+      const originalEnabled = data.extensionEnabled !== false;
+      
+      chrome.storage.local.set({ extensionEnabled: false }, () => {
+        setTimeout(() => {
+          fetch('https://api.ipify.org?format=json')
+            .then(r => r.json())
+            .then(realIP => {
+              chrome.storage.local.set({ extensionEnabled: originalEnabled }, () => {
+                setTimeout(() => {
+                  fetch('https://api.ipify.org?format=json')
+                    .then(r => r.json())
+                    .then(proxyIP => {
+                      const isLeaking = realIP.ip === proxyIP.ip;
+                      sendResponse({ 
+                        success: true, 
+                        realIP: realIP.ip,
+                        proxyIP: proxyIP.ip,
+                        isLeaking: isLeaking
+                      });
+                    })
+                    .catch(() => {
+                      sendResponse({ success: false, error: 'Proxy check failed' });
+                    });
+                }, 500);
+              });
+            })
+            .catch(() => {
+              chrome.storage.local.set({ extensionEnabled: originalEnabled });
+              sendResponse({ success: false, error: 'Real IP check failed' });
+            });
+        }, 500);
+      });
+    });
+    
     return true;
   }
 });
