@@ -1,7 +1,10 @@
 # 🛡️ Proxy Manager
 
 > Chrome расширение для автоматической маршрутизации веб-трафика
-
+<p align="center">
+  <img width="420" alt="3" src="https://github.com/user-attachments/assets/9012ab79-3f09-4078-bd90-6ac57c6a5285" />
+  <img width="420" alt="1" src="https://github.com/user-attachments/assets/562e7294-4959-45ba-907e-6a1dbfbeed2d" />
+</p>
 ---
 
 ## 📖 О расширении
