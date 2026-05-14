@@ -16,6 +16,20 @@ function debounce(func, wait) {
   };
 }
 
+// ============= КЭШ ДЛЯ UI =============
+let cachedData = {
+  proxyList: [],
+  directList: [],
+  proxies: [],
+  activeProxyId: null,
+  autoAddRelated: false,
+  extensionEnabled: true
+};
+
+// Флаг для предотвращения множественных рендеров
+let isRendering = false;
+let pendingRender = false;
+
 // Валидация IP адреса
 function isValidIP(ip) {
   if (!ip || typeof ip !== 'string') return false;
@@ -140,48 +154,67 @@ document.querySelectorAll('.subtab-btn').forEach(btn => {
 
 // Загрузка данных
 function loadData() {
+  // Предотвращаем множественные одновременные рендеры
+  if (isRendering) {
+    pendingRender = true;
+    return;
+  }
+  
+  isRendering = true;
+  
   chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled'], (data) => {
-    const proxyList = data.proxyList || [];
-    const directList = data.directList || [];
-    const proxies = data.proxies || [];
-    const activeProxyId = data.activeProxyId;
-    const autoAddRelated = data.autoAddRelated || false;
-    const extensionEnabled = data.extensionEnabled !== false; // По умолчанию включено
+    // Обновляем кэш
+    cachedData.proxyList = data.proxyList || [];
+    cachedData.directList = data.directList || [];
+    cachedData.proxies = data.proxies || [];
+    cachedData.activeProxyId = data.activeProxyId;
+    cachedData.autoAddRelated = data.autoAddRelated || false;
+    cachedData.extensionEnabled = data.extensionEnabled !== false;
     
-    renderProxies(proxies, activeProxyId);
+    renderProxies(cachedData.proxies, cachedData.activeProxyId);
     
     // Применяем текущий поисковый запрос при рендере
     const proxySearchQuery = proxyListSearch?.value || '';
     const directSearchQuery = directListSearch?.value || '';
     
-    const filteredProxyList = filterSites(proxyList, proxySearchQuery);
-    const filteredDirectList = filterSites(directList, directSearchQuery);
+    const filteredProxyList = filterSites(cachedData.proxyList, proxySearchQuery);
+    const filteredDirectList = filterSites(cachedData.directList, directSearchQuery);
     
     renderSites(filteredProxyList, proxyListSites, 'proxyList');
     renderSites(filteredDirectList, directListSites, 'directList');
     
     // Обновляем счётчики
-    updateSearchCount(proxyList.length, filteredProxyList.length, proxyListCount);
-    updateSearchCount(directList.length, filteredDirectList.length, directListCount);
+    updateSearchCount(cachedData.proxyList.length, filteredProxyList.length, proxyListCount);
+    updateSearchCount(cachedData.directList.length, filteredDirectList.length, directListCount);
     
     // Устанавливаем состояние чекбокса
     if (autoAddRelatedCheckbox) {
-      autoAddRelatedCheckbox.checked = autoAddRelated;
+      autoAddRelatedCheckbox.checked = cachedData.autoAddRelated;
     }
     
     // Обновляем главный переключатель
-    updateMainToggle(extensionEnabled);
+    updateMainToggle(cachedData.extensionEnabled);
+    
+    isRendering = false;
+    
+    // Если был запрос на рендер во время выполнения, выполняем его
+    if (pendingRender) {
+      pendingRender = false;
+      loadData();
+    }
   });
 }
 
-// Рендер списка прокси
+// Рендер списка прокси (используем DocumentFragment)
 function renderProxies(proxies, activeProxyId) {
   if (proxies.length === 0) {
     proxiesList.innerHTML = '<div class="empty-state-small">Нет прокси серверов</div>';
     return;
   }
   
-  proxiesList.innerHTML = '';
+  // Используем DocumentFragment для более быстрого рендера
+  const fragment = document.createDocumentFragment();
+  
   proxies.forEach(proxy => {
     const item = document.createElement('div');
     item.className = `proxy-item ${proxy.id === activeProxyId ? 'active' : ''}`;
@@ -213,66 +246,65 @@ function renderProxies(proxies, activeProxyId) {
         <input type="password" class="proxy-password" value="${proxy.password || ''}" data-id="${proxy.id}" placeholder="Пароль (опционально)">
       </div>
     `;
-    proxiesList.appendChild(item);
+    fragment.appendChild(item);
   });
   
-  // Обработчики для прокси
-  document.querySelectorAll('input[name="activeProxy"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      chrome.storage.local.set({ activeProxyId: Number(radio.value) }, loadData);
-    });
-  });
+  // Очищаем и добавляем все элементы за один раз
+  proxiesList.innerHTML = '';
+  proxiesList.appendChild(fragment);
   
-  document.querySelectorAll('.proxy-name-input').forEach(input => {
-    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'name', input.value));
-  });
-  
-  document.querySelectorAll('.proxy-host').forEach(input => {
-    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'host', input.value));
+  // Обработчики для прокси (используем делегирование событий)
+  proxiesList.addEventListener('change', (e) => {
+    const target = e.target;
+    const id = Number(target.dataset.id);
     
-    // Валидация в реальном времени
-    input.addEventListener('input', () => {
-      const value = input.value.trim();
+    if (target.name === 'activeProxy') {
+      chrome.storage.local.set({ activeProxyId: Number(target.value) }, loadData);
+    } else if (target.classList.contains('proxy-name-input')) {
+      updateProxy(id, 'name', target.value);
+    } else if (target.classList.contains('proxy-host')) {
+      updateProxy(id, 'host', target.value);
+    } else if (target.classList.contains('proxy-port')) {
+      updateProxy(id, 'port', parseInt(target.value));
+    } else if (target.classList.contains('proxy-type')) {
+      updateProxy(id, 'type', target.value);
+    } else if (target.classList.contains('proxy-username')) {
+      updateProxy(id, 'username', target.value);
+    } else if (target.classList.contains('proxy-password')) {
+      updateProxy(id, 'password', target.value);
+    }
+  });
+  
+  // Валидация в реальном времени
+  proxiesList.addEventListener('input', (e) => {
+    const target = e.target;
+    
+    if (target.classList.contains('proxy-host')) {
+      const value = target.value.trim();
       if (value === '' || isValidProxyHost(value)) {
-        input.classList.remove('invalid-input');
-        input.title = '';
+        target.classList.remove('invalid-input');
+        target.title = '';
       } else {
-        input.classList.add('invalid-input');
-        input.title = 'Неверный формат IP или hostname';
+        target.classList.add('invalid-input');
+        target.title = 'Неверный формат IP или hostname';
       }
-    });
-  });
-  
-  document.querySelectorAll('.proxy-port').forEach(input => {
-    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'port', parseInt(input.value)));
-    
-    // Валидация в реальном времени
-    input.addEventListener('input', () => {
-      const value = input.value;
+    } else if (target.classList.contains('proxy-port')) {
+      const value = target.value;
       if (value === '' || isValidPort(value)) {
-        input.classList.remove('invalid-input');
-        input.title = '';
+        target.classList.remove('invalid-input');
+        target.title = '';
       } else {
-        input.classList.add('invalid-input');
-        input.title = 'Порт должен быть от 1 до 65535';
+        target.classList.add('invalid-input');
+        target.title = 'Порт должен быть от 1 до 65535';
       }
-    });
+    }
   });
   
-  document.querySelectorAll('.proxy-type').forEach(select => {
-    select.addEventListener('change', () => updateProxy(Number(select.dataset.id), 'type', select.value));
-  });
-  
-  document.querySelectorAll('.proxy-username').forEach(input => {
-    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'username', input.value));
-  });
-  
-  document.querySelectorAll('.proxy-password').forEach(input => {
-    input.addEventListener('change', () => updateProxy(Number(input.dataset.id), 'password', input.value));
-  });
-  
-  document.querySelectorAll('.delete-btn-small').forEach(btn => {
-    btn.addEventListener('click', () => deleteProxy(Number(btn.dataset.id)));
+  // Обработчик удаления
+  proxiesList.addEventListener('click', (e) => {
+    if (e.target.classList.contains('delete-btn-small')) {
+      deleteProxy(Number(e.target.dataset.id));
+    }
   });
 }
 
@@ -495,7 +527,7 @@ function groupDomainsByBase(sites) {
   return Object.values(groups).sort((a, b) => a.base.localeCompare(b.base));
 }
 
-// Рендер списка сайтов с группировкой
+// Рендер списка сайтов с группировкой (DocumentFragment)
 function renderSites(sites, container, listType) {
   if (!container) {
     console.error('renderSites: container is null for', listType);
@@ -515,7 +547,8 @@ function renderSites(sites, container, listType) {
   // Группируем домены
   const groups = groupDomainsByBase(sites);
   
-  container.innerHTML = '';
+  // Используем DocumentFragment для быстрого рендера
+  const fragment = document.createDocumentFragment();
   
   groups.forEach(group => {
     const hasMultiple = group.sites.length > 1;
@@ -524,15 +557,12 @@ function renderSites(sites, container, listType) {
     
     if (hasMultiple) {
       // Группа с несколькими доменами
-      // Ищем основной домен (без поддоменов и без wildcard)
       const mainSite = group.sites.find(s => s.value === group.base) || group.sites[0];
       const otherSites = group.sites.filter(s => s !== mainSite);
       
-      // Подсчитываем включенные и выключенные
       const enabledCount = group.sites.filter(s => s.enabled).length;
       const disabledCount = group.sites.length - enabledCount;
       
-      // Проверяем, была ли группа раскрыта
       const isExpanded = expandedGroups.has(group.base);
       
       groupDiv.innerHTML = `
@@ -561,12 +591,11 @@ function renderSites(sites, container, listType) {
         </div>
       `;
       
-      // Добавляем класс expanded если группа раскрыта
       if (isExpanded) {
         groupDiv.querySelector('.domain-group-header').classList.add('expanded');
       }
     } else {
-      // Одиночный домен без группировки
+      // Одиночный домен
       const site = group.sites[0];
       groupDiv.innerHTML = `
         <div class="site-item">
@@ -579,19 +608,20 @@ function renderSites(sites, container, listType) {
       `;
     }
     
-    container.appendChild(groupDiv);
+    fragment.appendChild(groupDiv);
   });
   
-  // Обработчики для раскрытия групп
-  container.querySelectorAll('.domain-group-header').forEach(header => {
-    header.addEventListener('click', (e) => {
-      // Игнорируем клики по кнопкам и toggle
-      if (e.target.closest('.site-actions') || 
-          e.target.classList.contains('toggle-switch') ||
-          e.target.classList.contains('delete-btn')) {
-        return;
-      }
-      
+  // Очищаем и добавляем все за один раз
+  container.innerHTML = '';
+  container.appendChild(fragment);
+  
+  // Используем делегирование событий для обработчиков
+  container.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    // Раскрытие групп
+    const header = target.closest('.domain-group-header');
+    if (header && !target.closest('.site-actions') && !target.classList.contains('toggle-switch') && !target.classList.contains('delete-btn')) {
       const groupName = header.dataset.group;
       const subdomains = header.nextElementSibling;
       const icon = header.querySelector('.expand-icon');
@@ -609,28 +639,20 @@ function renderSites(sites, container, listType) {
           expandedGroups.delete(groupName);
         }
       }
-    });
-  });
-  
-  // Обработчики для кнопок
-  const deleteButtons = container.querySelectorAll('.delete-btn');
-  const toggleSwitches = container.querySelectorAll('.toggle-switch');
-  
-  deleteButtons.forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    }
+    
+    // Удаление
+    if (target.classList.contains('delete-btn')) {
       e.stopPropagation();
-      e.preventDefault();
-      deleteSite(Number(btn.dataset.id), btn.dataset.list);
-    });
-  });
-  
-  toggleSwitches.forEach(toggle => {
-    toggle.addEventListener('click', (e) => {
+      deleteSite(Number(target.dataset.id), target.dataset.list);
+    }
+    
+    // Toggle
+    if (target.classList.contains('toggle-switch')) {
       e.stopPropagation();
-      e.preventDefault();
-      const enabled = !toggle.classList.contains('active');
-      toggleSite(Number(toggle.dataset.id), toggle.dataset.list, enabled);
-    });
+      const enabled = !target.classList.contains('active');
+      toggleSite(Number(target.dataset.id), target.dataset.list, enabled);
+    }
   });
 }
 
@@ -797,32 +819,26 @@ function updateSearchCount(total, filtered, countElement) {
   }
 }
 
-// Поиск в proxy list с debounce
+// Поиск в proxy list с debounce (уменьшен debounce)
 if (proxyListSearch) {
   const debouncedProxySearch = debounce(() => {
     const searchQuery = proxyListSearch.value;
-    chrome.storage.local.get(['proxyList'], (data) => {
-      const allSites = data.proxyList || [];
-      const filtered = filterSites(allSites, searchQuery);
-      renderSites(filtered, proxyListSites, 'proxyList');
-      updateSearchCount(allSites.length, filtered.length, proxyListCount);
-    });
-  }, 300);
+    const filtered = filterSites(cachedData.proxyList, searchQuery);
+    renderSites(filtered, proxyListSites, 'proxyList');
+    updateSearchCount(cachedData.proxyList.length, filtered.length, proxyListCount);
+  }, 200); // Уменьшено с 300 до 200мс
   
   proxyListSearch.addEventListener('input', debouncedProxySearch);
 }
 
-// Поиск в direct list с debounce
+// Поиск в direct list с debounce (уменьшен debounce)
 if (directListSearch) {
   const debouncedDirectSearch = debounce(() => {
     const searchQuery = directListSearch.value;
-    chrome.storage.local.get(['directList'], (data) => {
-      const allSites = data.directList || [];
-      const filtered = filterSites(allSites, searchQuery);
-      renderSites(filtered, directListSites, 'directList');
-      updateSearchCount(allSites.length, filtered.length, directListCount);
-    });
-  }, 300);
+    const filtered = filterSites(cachedData.directList, searchQuery);
+    renderSites(filtered, directListSites, 'directList');
+    updateSearchCount(cachedData.directList.length, filtered.length, directListCount);
+  }, 200); // Уменьшено с 300 до 200мс
   
   directListSearch.addEventListener('input', debouncedDirectSearch);
 }
@@ -1223,18 +1239,19 @@ function drawActivityChart(hourlyData) {
   ctx.lineTo(width - padding, height - padding);
   ctx.stroke();
   
-  // Рисуем столбцы
+  // Оптимизация: рисуем все столбцы за один проход
+  ctx.fillStyle = '#1a73e8';
+  hourlyData.forEach((data, index) => {
+    const x = padding + index * barWidth;
+    const directHeight = (data.direct / maxValue) * chartHeight;
+    ctx.fillRect(x + 1, height - padding - directHeight, barWidth - 2, directHeight);
+  });
+  
+  ctx.fillStyle = '#34a853';
   hourlyData.forEach((data, index) => {
     const x = padding + index * barWidth;
     const proxyHeight = (data.proxy / maxValue) * chartHeight;
     const directHeight = (data.direct / maxValue) * chartHeight;
-    
-    // Столбец для direct (снизу)
-    ctx.fillStyle = '#1a73e8';
-    ctx.fillRect(x + 1, height - padding - directHeight, barWidth - 2, directHeight);
-    
-    // Столбец для proxy (сверху)
-    ctx.fillStyle = '#34a853';
     ctx.fillRect(x + 1, height - padding - directHeight - proxyHeight, barWidth - 2, proxyHeight);
   });
   
