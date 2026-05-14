@@ -480,38 +480,50 @@ const expandedGroups = new Set();
 function groupDomainsByBase(sites) {
   const groups = {};
   
+  // Список двухуровневых TLD
+  const twoLevelTLDs = [
+    'co.uk', 'com.au', 'co.jp', 'com.br', 'co.in', 'co.za',
+    'com.ru', 'net.ru', 'org.ru', 'co.nz', 'co.kr', 'com.cn'
+  ];
+  
+  // Функция для извлечения базового домена
+  function extractBaseDomain(domain) {
+    // Убираем wildcard в начале
+    if (domain.startsWith('*.')) {
+      return domain.substring(2);
+    }
+    
+    // Если нет точек - это одиночное слово (localhost, etc)
+    if (!domain.includes('.')) {
+      return domain;
+    }
+    
+    const parts = domain.split('.');
+    
+    // Если только 2 части (example.com) - это уже базовый домен
+    if (parts.length === 2) {
+      return domain;
+    }
+    
+    // Проверяем двухуровневые TLD (example.com.ru)
+    const lastTwo = parts.slice(-2).join('.');
+    if (twoLevelTLDs.includes(lastTwo)) {
+      // Для доменов типа api.example.com.ru -> example.com.ru
+      if (parts.length >= 3) {
+        return parts.slice(-3).join('.');
+      }
+      return domain;
+    }
+    
+    // Для обычных доменов берём последние 2 части
+    // api.github.com -> github.com
+    // cdn.api.github.com -> github.com
+    return parts.slice(-2).join('.');
+  }
+  
   sites.forEach(site => {
     const domain = site.value;
-    let baseDomain;
-    
-    // Определяем базовый домен
-    if (domain.startsWith('*.')) {
-      // *.google.com -> google.com
-      baseDomain = domain.substring(2);
-    } else if (domain.includes('.')) {
-      // subdomain.google.com -> google.com
-      // api.github.com -> github.com
-      const parts = domain.split('.');
-      
-      // Для доменов с 2+ частями берём последние 2 части
-      if (parts.length >= 2) {
-        // Исключения для доменов типа .co.uk, .com.au и т.д.
-        const twoLevelTLDs = ['co.uk', 'com.au', 'co.jp', 'com.br', 'co.in', 'co.za'];
-        const lastTwo = parts.slice(-2).join('.');
-        const lastThree = parts.length >= 3 ? parts.slice(-3).join('.') : lastTwo;
-        
-        if (twoLevelTLDs.includes(lastTwo)) {
-          baseDomain = lastThree;
-        } else {
-          baseDomain = lastTwo;
-        }
-      } else {
-        baseDomain = domain;
-      }
-    } else {
-      // Одиночное слово (localhost, etc)
-      baseDomain = domain;
-    }
+    const baseDomain = extractBaseDomain(domain);
     
     if (!groups[baseDomain]) {
       groups[baseDomain] = {
@@ -524,7 +536,34 @@ function groupDomainsByBase(sites) {
   });
   
   // Сортируем группы по имени базового домена
-  return Object.values(groups).sort((a, b) => a.base.localeCompare(b.base));
+  const sortedGroups = Object.values(groups).sort((a, b) => a.base.localeCompare(b.base));
+  
+  // Внутри каждой группы сортируем сайты:
+  // 1. Сначала базовый домен или *.basedomain
+  // 2. Потом wildcard домены (*.subdomain.basedomain)
+  // 3. Потом конкретные поддомены (subdomain.basedomain)
+  sortedGroups.forEach(group => {
+    group.sites.sort((a, b) => {
+      const aVal = a.value;
+      const bVal = b.value;
+      
+      // Базовый домен или *.basedomain идут первыми
+      if (aVal === group.base || aVal === `*.${group.base}`) return -1;
+      if (bVal === group.base || bVal === `*.${group.base}`) return 1;
+      
+      // Wildcard домены идут перед конкретными
+      const aIsWildcard = aVal.startsWith('*.');
+      const bIsWildcard = bVal.startsWith('*.');
+      
+      if (aIsWildcard && !bIsWildcard) return -1;
+      if (!aIsWildcard && bIsWildcard) return 1;
+      
+      // Иначе сортируем по алфавиту
+      return aVal.localeCompare(bVal);
+    });
+  });
+  
+  return sortedGroups;
 }
 
 // Рендер списка сайтов с группировкой (DocumentFragment)
