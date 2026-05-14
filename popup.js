@@ -653,14 +653,19 @@ function renderSites(sites, container, listType) {
   // Очищаем и добавляем все за один раз
   container.innerHTML = '';
   container.appendChild(fragment);
-  
-  // Используем делегирование событий для обработчиков
+}
+
+// Обработчики событий для списков (устанавливаются один раз)
+function setupSiteListHandlers(container, listType) {
   container.addEventListener('click', (e) => {
     const target = e.target;
     
     // Раскрытие групп
     const header = target.closest('.domain-group-header');
     if (header && !target.closest('.site-actions') && !target.classList.contains('toggle-switch') && !target.classList.contains('delete-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      
       const groupName = header.dataset.group;
       const subdomains = header.nextElementSibling;
       const icon = header.querySelector('.expand-icon');
@@ -678,19 +683,24 @@ function renderSites(sites, container, listType) {
           expandedGroups.delete(groupName);
         }
       }
+      return;
     }
     
     // Удаление
     if (target.classList.contains('delete-btn')) {
+      e.preventDefault();
       e.stopPropagation();
       deleteSite(Number(target.dataset.id), target.dataset.list);
+      return;
     }
     
     // Toggle
     if (target.classList.contains('toggle-switch')) {
+      e.preventDefault();
       e.stopPropagation();
       const enabled = !target.classList.contains('active');
       toggleSite(Number(target.dataset.id), target.dataset.list, enabled);
+      return;
     }
   });
 }
@@ -1123,6 +1133,10 @@ if (mainToggle) {
 
 // Инициализация
 loadData();
+
+// Устанавливаем обработчики событий для списков (один раз)
+setupSiteListHandlers(proxyListSites, 'proxyList');
+setupSiteListHandlers(directListSites, 'directList');
 
 // Загрузка версии в футер
 const manifest = chrome.runtime.getManifest();
