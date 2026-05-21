@@ -1,6 +1,23 @@
 // Генератор уникальных ID
 function generateUniqueId() {
-  return Date.now() + Math.random();
+  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sameProxyId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+function parseProxyId(value) {
+  if (value == null || value === '') return null;
+  const str = String(value).trim();
+  const num = Number(str);
+  if (/^\d+(\.\d+)?$/.test(str) && Number.isFinite(num)) return num;
+  return str;
+}
+
+function findProxyById(proxies, id) {
+  return (proxies || []).find(p => sameProxyId(p.id, id));
 }
 
 // Debounce функция для оптимизации поиска
@@ -86,9 +103,7 @@ function isValidProxyHost(host) {
 const addProxyBtn = document.getElementById('addProxy');
 const proxiesList = document.getElementById('proxiesList');
 const testProxyBtn = document.getElementById('testProxy');
-const testDNSBtn = document.getElementById('testDNS');
 const proxyTestResult = document.getElementById('proxyTestResult');
-const dnsTestResult = document.getElementById('dnsTestResult');
 const analyzeCurrentPageBtn = document.getElementById('analyzeCurrentPage');
 const relatedDomainsSection = document.getElementById('relatedDomainsSection');
 const relatedDomainsList = document.getElementById('relatedDomainsList');
@@ -205,67 +220,28 @@ function loadData() {
   });
 }
 
-// Рендер списка прокси (используем DocumentFragment)
-function renderProxies(proxies, activeProxyId) {
-  if (proxies.length === 0) {
-    proxiesList.innerHTML = '<div class="empty-state-small">Нет прокси серверов</div>';
-    return;
-  }
-  
-  // Используем DocumentFragment для более быстрого рендера
-  const fragment = document.createDocumentFragment();
-  
-  proxies.forEach(proxy => {
-    const item = document.createElement('div');
-    item.className = `proxy-item ${proxy.id === activeProxyId ? 'active' : ''}`;
-    
-    // Проверяем валидность
-    const isHostValid = !proxy.host || proxy.host.trim() === '' || isValidProxyHost(proxy.host);
-    const isPortValid = !proxy.port || isValidPort(proxy.port);
-    const hostClass = isHostValid ? '' : 'invalid-input';
-    const portClass = isPortValid ? '' : 'invalid-input';
-    
-    item.innerHTML = `
-      <div class="proxy-header-row">
-        <input type="radio" name="activeProxy" value="${proxy.id}" ${proxy.id === activeProxyId ? 'checked' : ''} class="proxy-radio-input">
-        <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxy.id}" placeholder="Название прокси">
-        <button class="delete-btn-small" data-id="${proxy.id}" title="Удалить">✕</button>
-      </div>
-      <div class="proxy-config-row">
-        <input type="text" class="proxy-host ${hostClass}" value="${proxy.host}" data-id="${proxy.id}" placeholder="IP адрес или hostname" title="${isHostValid ? '' : 'Неверный формат IP или hostname'}">
-        <input type="number" class="proxy-port ${portClass}" value="${proxy.port}" data-id="${proxy.id}" placeholder="Порт" min="1" max="65535" title="${isPortValid ? '' : 'Порт должен быть от 1 до 65535'}">
-        <select class="proxy-type" data-id="${proxy.id}">
-          <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
-          <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
-          <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
-          <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
-        </select>
-      </div>
-      <div class="proxy-auth-row">
-        <input type="text" class="proxy-username" value="${proxy.username || ''}" data-id="${proxy.id}" placeholder="Логин (опционально)">
-        <input type="password" class="proxy-password" value="${proxy.password || ''}" data-id="${proxy.id}" placeholder="Пароль (опционально)">
-      </div>
-    `;
-    fragment.appendChild(item);
-  });
-  
-  // Очищаем и добавляем все элементы за один раз
-  proxiesList.innerHTML = '';
-  proxiesList.appendChild(fragment);
-  
-  // Обработчики для прокси (используем делегирование событий)
+function setActiveProxy(proxyId) {
+  chrome.storage.local.set({ activeProxyId: proxyId }, loadData);
+}
+
+function setupProxiesListHandlers() {
+  if (proxiesList.dataset.handlersReady === '1') return;
+  proxiesList.dataset.handlersReady = '1';
+
   proxiesList.addEventListener('change', (e) => {
     const target = e.target;
-    const id = Number(target.dataset.id);
-    
+    const id = parseProxyId(target.dataset.id);
+
     if (target.name === 'activeProxy') {
-      chrome.storage.local.set({ activeProxyId: Number(target.value) }, loadData);
-    } else if (target.classList.contains('proxy-name-input')) {
+      setActiveProxy(parseProxyId(target.value));
+      return;
+    }
+    if (target.classList.contains('proxy-name-input')) {
       updateProxy(id, 'name', target.value);
     } else if (target.classList.contains('proxy-host')) {
       updateProxy(id, 'host', target.value);
     } else if (target.classList.contains('proxy-port')) {
-      updateProxy(id, 'port', parseInt(target.value));
+      updateProxy(id, 'port', parseInt(target.value, 10));
     } else if (target.classList.contains('proxy-type')) {
       updateProxy(id, 'type', target.value);
     } else if (target.classList.contains('proxy-username')) {
@@ -274,11 +250,10 @@ function renderProxies(proxies, activeProxyId) {
       updateProxy(id, 'password', target.value);
     }
   });
-  
-  // Валидация в реальном времени
+
   proxiesList.addEventListener('input', (e) => {
     const target = e.target;
-    
+
     if (target.classList.contains('proxy-host')) {
       const value = target.value.trim();
       if (value === '' || isValidProxyHost(value)) {
@@ -299,13 +274,73 @@ function renderProxies(proxies, activeProxyId) {
       }
     }
   });
-  
-  // Обработчик удаления
+
   proxiesList.addEventListener('click', (e) => {
     if (e.target.classList.contains('delete-btn-small')) {
-      deleteProxy(Number(e.target.dataset.id));
+      deleteProxy(parseProxyId(e.target.dataset.id));
+      return;
+    }
+
+    const proxyItem = e.target.closest('.proxy-item');
+    if (!proxyItem || e.target.closest('input, select, textarea, button')) {
+      return;
+    }
+
+    const radio = proxyItem.querySelector('input[name="activeProxy"]');
+    if (radio && !radio.checked) {
+      radio.checked = true;
+      setActiveProxy(parseProxyId(radio.value));
     }
   });
+}
+
+// Рендер списка прокси (используем DocumentFragment)
+function renderProxies(proxies, activeProxyId) {
+  if (proxies.length === 0) {
+    proxiesList.innerHTML = '<div class="empty-state-small">Нет прокси серверов</div>';
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  proxies.forEach(proxy => {
+    const isActive = sameProxyId(proxy.id, activeProxyId);
+    const item = document.createElement('div');
+    item.className = `proxy-item${isActive ? ' active' : ''}`;
+
+    const isHostValid = !proxy.host || proxy.host.trim() === '' || isValidProxyHost(proxy.host);
+    const isPortValid = !proxy.port || isValidPort(proxy.port);
+    const hostClass = isHostValid ? '' : 'invalid-input';
+    const portClass = isPortValid ? '' : 'invalid-input';
+    const proxyId = String(proxy.id);
+
+    item.innerHTML = `
+      <div class="proxy-header-row">
+        <input type="radio" name="activeProxy" value="${proxyId}" ${isActive ? 'checked' : ''} class="proxy-radio-input" aria-label="Выбрать прокси ${proxy.name}">
+        <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxyId}" placeholder="Название прокси">
+        <button type="button" class="delete-btn-small" data-id="${proxyId}" title="Удалить">✕</button>
+      </div>
+      <div class="proxy-config-row">
+        <input type="text" class="proxy-host ${hostClass}" value="${proxy.host}" data-id="${proxyId}" placeholder="IP адрес или hostname" title="${isHostValid ? '' : 'Неверный формат IP или hostname'}">
+        <input type="number" class="proxy-port ${portClass}" value="${proxy.port}" data-id="${proxyId}" placeholder="Порт" min="1" max="65535" title="${isPortValid ? '' : 'Порт должен быть от 1 до 65535'}">
+        <select class="proxy-type" data-id="${proxyId}">
+          <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
+          <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
+          <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
+          <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
+        </select>
+      </div>
+      <div class="proxy-auth-row">
+        <input type="text" class="proxy-username" value="${proxy.username || ''}" data-id="${proxyId}" placeholder="Логин (опционально)">
+        <input type="password" class="proxy-password" value="${proxy.password || ''}" data-id="${proxyId}" placeholder="Пароль (опционально)">
+      </div>
+    `;
+    fragment.appendChild(item);
+  });
+  
+  proxiesList.innerHTML = '';
+  proxiesList.appendChild(fragment);
+  setupProxiesListHandlers();
 }
 
 // Обновление прокси
@@ -328,7 +363,7 @@ function updateProxy(id, field, value) {
   }
   
   chrome.storage.local.get(['proxies'], (data) => {
-    const proxies = data.proxies.map(p => p.id === id ? { ...p, [field]: value } : p);
+    const proxies = data.proxies.map(p => sameProxyId(p.id, id) ? { ...p, [field]: value } : p);
     chrome.storage.local.set({ proxies }, loadData);
   });
 }
@@ -341,18 +376,17 @@ function deleteProxy(id) {
       return;
     }
     
-    const proxyToDelete = data.proxies.find(p => p.id === id);
+    const proxyToDelete = findProxyById(data.proxies, id);
     if (!proxyToDelete) return;
-    
+
     if (!confirm(`Удалить прокси "${proxyToDelete.name}"?\n\n${proxyToDelete.host}:${proxyToDelete.port} (${proxyToDelete.type})`)) {
       return;
     }
-    
-    const proxies = data.proxies.filter(p => p.id !== id);
+
+    const proxies = data.proxies.filter(p => !sameProxyId(p.id, id));
     const updates = { proxies };
-    
-    // Если удаляем активный прокси, переключаемся на первый
-    if (data.activeProxyId === id) {
+
+    if (sameProxyId(data.activeProxyId, id)) {
       updates.activeProxyId = proxies[0].id;
     }
     
@@ -387,7 +421,7 @@ testProxyBtn.addEventListener('click', () => {
   proxyTestResult.className = 'proxy-test-result loading';
   
   chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
-    const activeProxy = data.proxies?.find(p => p.id === data.activeProxyId);
+    const activeProxy = findProxyById(data.proxies, data.activeProxyId);
     const extensionEnabled = data.extensionEnabled !== false;
     
     if (!extensionEnabled) {
@@ -433,44 +467,6 @@ testProxyBtn.addEventListener('click', () => {
 // Кнопка закрытия для proxy test
 proxyTestResult.querySelector('.test-result-close').addEventListener('click', () => {
   proxyTestResult.style.display = 'none';
-});
-
-// Тест DNS утечек
-testDNSBtn.addEventListener('click', () => {
-  dnsTestResult.style.display = 'flex';
-  const textSpan = dnsTestResult.querySelector('.test-result-text');
-  textSpan.textContent = 'Проверка DNS утечек...';
-  dnsTestResult.className = 'dns-test-result loading';
-  
-  chrome.storage.local.get(['extensionEnabled'], (data) => {
-    const extensionEnabled = data.extensionEnabled !== false;
-    
-    if (!extensionEnabled) {
-      textSpan.textContent = '✗ Расширение выключено';
-      dnsTestResult.className = 'dns-test-result error';
-      return;
-    }
-    
-    chrome.runtime.sendMessage({ action: 'checkDNSLeak' }, (response) => {
-      if (response && response.success) {
-        if (response.isLeaking) {
-          textSpan.textContent = `⚠️ Утечка DNS! Реальный IP: ${response.realIP}`;
-          dnsTestResult.className = 'dns-test-result warning';
-        } else {
-          textSpan.textContent = `✓ DNS защищён | Прокси IP: ${response.proxyIP}`;
-          dnsTestResult.className = 'dns-test-result success';
-        }
-      } else {
-        textSpan.textContent = `✗ Ошибка: ${response?.error || 'Неизвестная ошибка'}`;
-        dnsTestResult.className = 'dns-test-result error';
-      }
-    });
-  });
-});
-
-// Кнопка закрытия для DNS test
-dnsTestResult.querySelector('.test-result-close').addEventListener('click', () => {
-  dnsTestResult.style.display = 'none';
 });
 
 // Состояние раскрытых групп
@@ -613,8 +609,8 @@ function renderSites(sites, container, listType) {
             ${disabledCount > 0 ? `<span class="subdomain-count disabled">${disabledCount}</span>` : ''}
           </div>
           <div class="site-actions">
-            <div class="toggle-switch ${mainSite.enabled ? 'active' : ''}" data-id="${mainSite.id}" data-list="${listType}"></div>
-            <button class="delete-btn" data-id="${mainSite.id}" data-list="${listType}">✕</button>
+            <div class="toggle-switch ${mainSite.enabled ? 'active' : ''}" data-id="${String(mainSite.id)}" data-list="${listType}"></div>
+            <button type="button" class="delete-btn" data-id="${String(mainSite.id)}" data-list="${listType}">✕</button>
           </div>
         </div>
         <div class="domain-group-subdomains" style="display: ${isExpanded ? 'block' : 'none'};">
@@ -622,8 +618,8 @@ function renderSites(sites, container, listType) {
             <div class="site-item subdomain-item">
               <div class="site-name">${site.value}</div>
               <div class="site-actions">
-                <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${site.id}" data-list="${listType}"></div>
-                <button class="delete-btn" data-id="${site.id}" data-list="${listType}">✕</button>
+                <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
+                <button type="button" class="delete-btn" data-id="${String(site.id)}" data-list="${listType}">✕</button>
               </div>
             </div>
           `).join('')}
@@ -640,8 +636,8 @@ function renderSites(sites, container, listType) {
         <div class="site-item">
           <div class="site-name">${site.value}</div>
           <div class="site-actions">
-            <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${site.id}" data-list="${listType}"></div>
-            <button class="delete-btn" data-id="${site.id}" data-list="${listType}">✕</button>
+            <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
+            <button type="button" class="delete-btn" data-id="${String(site.id)}" data-list="${listType}">✕</button>
           </div>
         </div>
       `;
@@ -655,21 +651,38 @@ function renderSites(sites, container, listType) {
   container.appendChild(fragment);
 }
 
-// Обработчики событий для списков (устанавливаются один раз)
-function setupSiteListHandlers(container, listType) {
+// Обработчики событий для списков (устанавливаются один раз, делегирование)
+function setupSiteListHandlers(container) {
+  if (container.dataset.handlersReady === '1') return;
+  container.dataset.handlersReady = '1';
+
   container.addEventListener('click', (e) => {
-    const target = e.target;
-    
-    // Раскрытие групп
-    const header = target.closest('.domain-group-header');
-    if (header && !target.closest('.site-actions') && !target.classList.contains('toggle-switch') && !target.classList.contains('delete-btn')) {
+    const deleteBtn = e.target.closest('.delete-btn');
+    if (deleteBtn) {
       e.preventDefault();
       e.stopPropagation();
-      
+      deleteSite(parseProxyId(deleteBtn.dataset.id), deleteBtn.dataset.list);
+      return;
+    }
+
+    const toggle = e.target.closest('.toggle-switch');
+    if (toggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const enabled = !toggle.classList.contains('active');
+      toggleSite(parseProxyId(toggle.dataset.id), toggle.dataset.list, enabled);
+      return;
+    }
+
+    const header = e.target.closest('.domain-group-header');
+    if (header && !e.target.closest('.site-actions')) {
+      e.preventDefault();
+      e.stopPropagation();
+
       const groupName = header.dataset.group;
       const subdomains = header.nextElementSibling;
       const icon = header.querySelector('.expand-icon');
-      
+
       if (subdomains && subdomains.classList.contains('domain-group-subdomains')) {
         if (subdomains.style.display === 'none') {
           subdomains.style.display = 'block';
@@ -683,24 +696,6 @@ function setupSiteListHandlers(container, listType) {
           expandedGroups.delete(groupName);
         }
       }
-      return;
-    }
-    
-    // Удаление
-    if (target.classList.contains('delete-btn')) {
-      e.preventDefault();
-      e.stopPropagation();
-      deleteSite(Number(target.dataset.id), target.dataset.list);
-      return;
-    }
-    
-    // Toggle
-    if (target.classList.contains('toggle-switch')) {
-      e.preventDefault();
-      e.stopPropagation();
-      const enabled = !target.classList.contains('active');
-      toggleSite(Number(target.dataset.id), target.dataset.list, enabled);
-      return;
     }
   });
 }
@@ -833,16 +828,22 @@ directListValue.addEventListener('input', () => {
 
 // Удаление сайта
 function deleteSite(id, listKey) {
+  if (id == null || !listKey) return;
+
   chrome.storage.local.get([listKey], (data) => {
-    const list = data[listKey].filter(s => s.id !== id);
+    const list = (data[listKey] || []).filter(s => !sameProxyId(s.id, id));
     chrome.storage.local.set({ [listKey]: list }, loadData);
   });
 }
 
 // Toggle сайта
 function toggleSite(id, listKey, enabled) {
+  if (id == null || !listKey) return;
+
   chrome.storage.local.get([listKey], (data) => {
-    const list = data[listKey].map(s => s.id === id ? { ...s, enabled } : s);
+    const list = (data[listKey] || []).map(s =>
+      sameProxyId(s.id, id) ? { ...s, enabled } : s
+    );
     chrome.storage.local.set({ [listKey]: list }, loadData);
   });
 }
@@ -1135,8 +1136,8 @@ if (mainToggle) {
 loadData();
 
 // Устанавливаем обработчики событий для списков (один раз)
-setupSiteListHandlers(proxyListSites, 'proxyList');
-setupSiteListHandlers(directListSites, 'directList');
+setupSiteListHandlers(proxyListSites);
+setupSiteListHandlers(directListSites);
 
 // Загрузка версии в футер
 const manifest = chrome.runtime.getManifest();

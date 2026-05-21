@@ -177,18 +177,6 @@ h3 {
   gap: 8px;
 }
 
-.dns-test-result {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .test-result-text {
   flex: 1;
   text-align: center;
@@ -210,28 +198,20 @@ h3 {
   opacity: 1;
 }
 
-.proxy-test-result.loading,
-.dns-test-result.loading {
+.proxy-test-result.loading {
   color: #1a73e8;
   background: #f0f7ff;
 }
 
-.proxy-test-result.success,
-.dns-test-result.success {
+.proxy-test-result.success {
   color: #137333;
   background: #e6f4ea;
   font-weight: 500;
 }
 
-.proxy-test-result.error,
-.dns-test-result.error {
+.proxy-test-result.error {
   color: #d93025;
   background: #fce8e6;
-}
-
-.dns-test-result.warning {
-  color: #b06000;
-  background: #fef7e0;
 }
 
 .proxies-list {
@@ -246,6 +226,13 @@ h3 {
   border-radius: 8px;
   background: white;
   transition: all 0.2s;
+  cursor: pointer;
+}
+
+.proxy-item input,
+.proxy-item select,
+.proxy-item button {
+  cursor: auto;
 }
 
 .proxy-item:hover {
@@ -272,6 +259,8 @@ h3 {
   cursor: pointer;
   accent-color: #1a73e8;
   flex-shrink: 0;
+  margin: 0;
+  pointer-events: auto;
 }
 
 .proxy-name-input {
