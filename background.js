@@ -1,8 +1,3 @@
-// Генератор уникальных ID
-function generateUniqueId() {
-  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function sameProxyId(a, b) {
   if (a == null || b == null) return false;
   return String(a) === String(b);
@@ -31,8 +26,8 @@ function buildProxyReturnChain(proxies, activeProxy) {
     const active = valid.find(p => sameProxyId(p.id, activeProxy.id));
     if (active) add(active);
   }
-  valid.forEach(add);
 
+  if (chain.length === 0) return null;
   return chain.map(p => `${p.type} ${p.host}:${p.port}`).join('; ') + '; DIRECT';
 }
 
@@ -41,7 +36,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate', 'extensionEnabled'], (data) => {
     // Создаём дефолтный прокси если его нет
     const defaultProxies = data.proxies || [
-      { id: generateUniqueId(), name: 'Default', host: '127.0.0.1', port: 1080, type: 'SOCKS5', enabled: true }
+      { id: crypto.randomUUID(), name: 'Default', host: '127.0.0.1', port: 1080, type: 'SOCKS5', enabled: true }
     ];
     
     // Если activeProxyId не установлен или не существует в списке, берём ID первого прокси
@@ -141,7 +136,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     switch (info.menuItemId) {
       case 'addToProxyList':
         if (!proxyList.find(s => s.value === domain)) {
-          proxyList.push({ id: generateUniqueId(), value: domain, enabled: true });
+          proxyList.push({ id: crypto.randomUUID(), value: domain, enabled: true });
           chrome.storage.local.set({ proxyList }, () => {
             chrome.notifications.create({
               type: 'basic',
@@ -159,7 +154,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         
       case 'addToDirectList':
         if (!directList.find(s => s.value === domain)) {
-          directList.push({ id: generateUniqueId(), value: domain, enabled: true });
+          directList.push({ id: crypto.randomUUID(), value: domain, enabled: true });
           chrome.storage.local.set({ directList }, () => {
             chrome.notifications.create({
               type: 'basic',
@@ -202,7 +197,7 @@ function addRelatedDomains(tabId, listKey) {
     
     domains.forEach(domain => {
       if (!list.find(s => s.value === domain)) {
-        list.push({ id: generateUniqueId(), value: domain, enabled: true });
+        list.push({ id: crypto.randomUUID(), value: domain, enabled: true });
         addedCount++;
       }
     });
@@ -357,10 +352,6 @@ function applyProxyConfig(proxyList, directList, proxies, activeProxy, extension
 
   const pacScript = generatePAC(proxyList, directList, proxies, activeProxy);
   
-  console.log('=== Generated PAC script ===');
-  console.log(pacScript);
-  console.log('=== End PAC script ===');
-  
   const config = {
     mode: 'pac_script',
     pacScript: {
@@ -375,7 +366,6 @@ function applyProxyConfig(proxyList, directList, proxies, activeProxy, extension
         console.error('Proxy error:', chrome.runtime.lastError.message);
         logRoute('ERROR', 'Proxy config failed', chrome.runtime.lastError.message);
       } else {
-        console.log('Proxy applied:', proxyChain, `Proxy list: ${proxyList.length}`, `Direct list: ${directList.length}`);
         logRoute('CONFIG', 'Applied', `${proxyChain} | Proxy: ${proxyList.length} | Direct: ${directList.length}`);
       }
     }
@@ -717,6 +707,85 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       });
     });
     
+    return true;
+  }
+  
+  if (request.action === 'testProxyHealth') {
+    chrome.storage.local.get(['proxies', 'proxyList', 'directList'], (data) => {
+      const proxyToTest = findProxyById(data.proxies, request.proxyId);
+      if (!proxyToTest) {
+        sendResponse({ success: false, error: 'Proxy not found' });
+        return;
+      }
+      
+      const originalList = data.proxyList || [];
+      const originalDirectList = data.directList || [];
+      const testProxyString = `${proxyToTest.type} ${proxyToTest.host}:${proxyToTest.port}`;
+      
+      const restore = (cb) => {
+        chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (restoreData) => {
+          const activeProxy = findProxyById(restoreData.proxies, restoreData.activeProxyId);
+          const extEnabled = restoreData.extensionEnabled !== false;
+          applyProxyConfig(originalList, originalDirectList, restoreData.proxies || [], activeProxy, extEnabled);
+          if (cb) cb();
+        });
+      };
+      
+      // Step 1: get local IP (direct connection)
+      chrome.proxy.settings.set(
+        { value: { mode: 'direct' }, scope: 'regular' },
+        () => {
+          setTimeout(() => {
+            fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
+              .then(r => r.json())
+              .then(local => {
+                // Step 2: get proxy IP
+                const pac = `function FindProxyForURL(url, host) {
+                  if (host === "api.ipify.org") return "${testProxyString}";
+                  return "DIRECT";
+                }`;
+                chrome.proxy.settings.set(
+                  { value: { mode: 'pac_script', pacScript: { data: pac } }, scope: 'regular' },
+                  () => {
+                    setTimeout(() => {
+                      fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
+                        .then(r => r.json())
+                        .then(proxy => {
+                          restore(() => sendResponse({ success: true, proxyIp: proxy.ip, localIp: local.ip }));
+                        })
+                        .catch(err => {
+                          restore(() => sendResponse({ success: false, error: err.message, localIp: local.ip }));
+                        });
+                    }, 500);
+                  }
+                );
+              })
+              .catch(() => {
+                // Failed to get local IP, try proxy only
+                const pac = `function FindProxyForURL(url, host) {
+                  if (host === "api.ipify.org") return "${testProxyString}";
+                  return "DIRECT";
+                }`;
+                chrome.proxy.settings.set(
+                  { value: { mode: 'pac_script', pacScript: { data: pac } }, scope: 'regular' },
+                  () => {
+                    setTimeout(() => {
+                      fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
+                        .then(r => r.json())
+                        .then(proxy => {
+                          restore(() => sendResponse({ success: true, proxyIp: proxy.ip, localIp: null }));
+                        })
+                        .catch(err => {
+                          restore(() => sendResponse({ success: false, error: err.message }));
+                        });
+                    }, 500);
+                  }
+                );
+              });
+          }, 500);
+        }
+      );
+    });
     return true;
   }
 });

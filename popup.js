@@ -1,8 +1,3 @@
-// Генератор уникальных ID
-function generateUniqueId() {
-  return `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function sameProxyId(a, b) {
   if (a == null || b == null) return false;
   return String(a) === String(b);
@@ -42,6 +37,9 @@ let cachedData = {
   autoAddRelated: false,
   extensionEnabled: true
 };
+
+// Кэш состояния здоровья прокси
+const proxyHealthCache = {};
 
 // Флаг для предотвращения множественных рендеров
 let isRendering = false;
@@ -317,6 +315,7 @@ function renderProxies(proxies, activeProxyId) {
     item.innerHTML = `
       <div class="proxy-header-row">
         <input type="radio" name="activeProxy" value="${proxyId}" ${isActive ? 'checked' : ''} class="proxy-radio-input" aria-label="Выбрать прокси ${proxy.name}">
+        <span class="proxy-status-dot ${proxyHealthCache[proxyId]?.status || 'untested'}" data-id="${proxyId}" title="${proxyHealthCache[proxyId]?.title || 'Статус неизвестен'}"></span>
         <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxyId}" placeholder="Название прокси">
         <button type="button" class="delete-btn-small" data-id="${proxyId}" title="Удалить">✕</button>
       </div>
@@ -399,7 +398,7 @@ addProxyBtn.addEventListener('click', () => {
   chrome.storage.local.get(['proxies'], (data) => {
     const proxies = data.proxies || [];
     const newProxy = {
-      id: generateUniqueId(),
+      id: crypto.randomUUID(),
       name: `Proxy ${proxies.length + 1}`,
       host: '127.0.0.1',
       port: 1080,
@@ -758,7 +757,7 @@ function addToList(value, listKey) {
     }
     
     list.push({
-      id: generateUniqueId(),
+      id: crypto.randomUUID(),
       value: value,
       enabled: true
     });
@@ -1135,6 +1134,34 @@ if (mainToggle) {
 // Инициализация
 loadData();
 
+// Авто-тест активного прокси
+function autoTestProxy() {
+  const activeProxy = findProxyById(cachedData.proxies, cachedData.activeProxyId);
+  if (!activeProxy || !cachedData.extensionEnabled) return;
+  
+  const proxyId = String(activeProxy.id);
+  const dot = document.querySelector(`.proxy-status-dot[data-id="${proxyId}"]`);
+  
+  chrome.runtime.sendMessage({ action: 'testProxyHealth', proxyId: activeProxy.id }, (response) => {
+    if (chrome.runtime.lastError) return;
+    
+    if (response && response.success) {
+      let title = `✓ Прокси: ${response.proxyIp}`;
+      if (response.localIp) title += ` | Локальный: ${response.localIp}`;
+      proxyHealthCache[proxyId] = { status: 'alive', title };
+    } else {
+      proxyHealthCache[proxyId] = { status: 'dead', title: `✗ ${response?.error || 'Недоступен'}` };
+    }
+    
+    if (dot) {
+      dot.className = `proxy-status-dot ${proxyHealthCache[proxyId].status}`;
+      dot.title = proxyHealthCache[proxyId].title;
+    }
+  });
+}
+
+setTimeout(autoTestProxy, 500);
+
 // Устанавливаем обработчики событий для списков (один раз)
 setupSiteListHandlers(proxyListSites);
 setupSiteListHandlers(directListSites);
@@ -1142,66 +1169,6 @@ setupSiteListHandlers(directListSites);
 // Загрузка версии в футер
 const manifest = chrome.runtime.getManifest();
 document.getElementById('footerVersion').textContent = manifest.version;
-
-
-// Быстрая загрузка RU Whitelist
-const importRuWhitelistBtn = document.getElementById('importRuWhitelist');
-if (importRuWhitelistBtn) {
-  importRuWhitelistBtn.addEventListener('click', () => {
-    const url = 'https://raw.githubusercontent.com/hxehex/russia-mobile-internet-whitelist/refs/heads/main/whitelist.txt';
-    
-    importRuWhitelistBtn.textContent = '⏳ Загрузка...';
-    importRuWhitelistBtn.disabled = true;
-    
-    fetch(url)
-      .then(response => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.text();
-      })
-      .then(text => {
-        const lines = text.split('\n')
-          .map(line => line.trim())
-          .filter(line => line && !line.startsWith('#') && !line.startsWith('//'));
-        
-        if (lines.length === 0) {
-          throw new Error('Список пуст');
-        }
-        
-        chrome.storage.local.get(['directList'], (data) => {
-          let list = data.directList || [];
-          let addedCount = 0;
-          
-          lines.forEach((domain, index) => {
-            if (!list.find(s => s.value.toLowerCase() === domain.toLowerCase())) {
-              list.push({
-                id: Date.now() + index,
-                value: domain,
-                enabled: true
-              });
-              addedCount++;
-            }
-          });
-          
-          chrome.storage.local.set({ directList: list }, () => {
-            loadData();
-            importRuWhitelistBtn.textContent = `✓ Добавлено ${addedCount} сайтов`;
-            
-            setTimeout(() => {
-              importRuWhitelistBtn.textContent = '🇷🇺 Загрузить RU Whitelist';
-              importRuWhitelistBtn.disabled = false;
-            }, 3000);
-          });
-        });
-      })
-      .catch(err => {
-        importRuWhitelistBtn.textContent = `✗ Ошибка: ${err.message}`;
-        setTimeout(() => {
-          importRuWhitelistBtn.textContent = '🇷🇺 Загрузить RU Whitelist';
-          importRuWhitelistBtn.disabled = false;
-        }, 3000);
-      });
-  });
-}
 
 
 // Обновление placeholder при изменении типа
@@ -1492,7 +1459,7 @@ document.getElementById('addAllToProxy')?.addEventListener('click', () => {
       response.relatedDomains.forEach((domain, index) => {
         if (!proxyList.some(s => s.value === domain)) {
           proxyList.push({
-            id: Date.now() + index,
+            id: crypto.randomUUID(),
             value: domain,
             enabled: true
           });
@@ -1503,7 +1470,7 @@ document.getElementById('addAllToProxy')?.addEventListener('click', () => {
       if (addedCount > 0) {
         chrome.storage.local.set({ proxyList }, () => {
           loadData();
-          analyzeCurrentPageBtn.click(); // Обновляем список
+          analyzeCurrentPageBtn.click();
         });
       }
     });
@@ -1522,7 +1489,7 @@ document.getElementById('addAllToDirect')?.addEventListener('click', () => {
       response.relatedDomains.forEach((domain, index) => {
         if (!directList.some(s => s.value === domain)) {
           directList.push({
-            id: Date.now() + index,
+            id: crypto.randomUUID(),
             value: domain,
             enabled: true
           });
@@ -1533,7 +1500,7 @@ document.getElementById('addAllToDirect')?.addEventListener('click', () => {
       if (addedCount > 0) {
         chrome.storage.local.set({ directList }, () => {
           loadData();
-          analyzeCurrentPageBtn.click(); // Обновляем список
+          analyzeCurrentPageBtn.click();
         });
       }
     });

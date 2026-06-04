@@ -263,6 +263,17 @@ h3 {
   pointer-events: auto;
 }
 
+.proxy-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.proxy-status-dot.alive { background: #34a853; }
+.proxy-status-dot.dead { background: #d93025; }
+.proxy-status-dot.untested { background: #dadce0; }
+
 .proxy-name-input {
   flex: 1;
   padding: 8px 12px;
