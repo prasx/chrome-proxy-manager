@@ -36,7 +36,9 @@ let cachedData = {
   activeProxyId: null,
   autoAddRelated: false,
   extensionEnabled: true,
-  autoProxyEnabled: false
+  autoProxyEnabled: false,
+  autoProxyTimeoutEnabled: false,
+  autoProxyTimeout: 5
 };
 
 // Флаг для предотвращения множественных рендеров
@@ -173,7 +175,7 @@ function loadData() {
   
   isRendering = true;
   
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled', 'autoProxyEnabled'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled', 'autoProxyEnabled', 'autoProxyTimeoutEnabled', 'autoProxyTimeout'], (data) => {
     // Обновляем кэш
     cachedData.proxyList = data.proxyList || [];
     cachedData.directList = data.directList || [];
@@ -182,6 +184,8 @@ function loadData() {
     cachedData.autoAddRelated = data.autoAddRelated || false;
     cachedData.extensionEnabled = data.extensionEnabled !== false;
     cachedData.autoProxyEnabled = data.autoProxyEnabled === true;
+    cachedData.autoProxyTimeoutEnabled = data.autoProxyTimeoutEnabled === true;
+    cachedData.autoProxyTimeout = parseInt(data.autoProxyTimeout, 10) || 5;
     
     renderProxies(cachedData.proxies, cachedData.activeProxyId);
     
@@ -216,7 +220,22 @@ function loadData() {
         autoProxyToggle.classList.remove('active');
       }
     }
-    
+
+    // Обновляем переключатель таймаута автопрокси
+    const autoProxyTimeoutToggle = document.getElementById('autoProxyTimeoutToggle');
+    if (autoProxyTimeoutToggle) {
+      if (cachedData.autoProxyTimeoutEnabled) {
+        autoProxyTimeoutToggle.classList.add('active');
+      } else {
+        autoProxyTimeoutToggle.classList.remove('active');
+      }
+    }
+
+    const autoProxyTimeoutInput = document.getElementById('autoProxyTimeout');
+    if (autoProxyTimeoutInput) {
+      autoProxyTimeoutInput.value = cachedData.autoProxyTimeout || 5;
+    }
+
     isRendering = false;
     
     // Если был запрос на рендер во время выполнения, выполняем его
@@ -243,47 +262,49 @@ function setupProxiesListHandlers() {
       setActiveProxy(parseProxyId(target.value));
       return;
     }
-    if (target.classList.contains('proxy-name-input')) {
+    const field = target.dataset.field;
+    if (field === 'name') {
       updateProxy(id, 'name', target.value);
-    } else if (target.classList.contains('proxy-host')) {
+    } else if (field === 'host') {
       updateProxy(id, 'host', target.value);
-    } else if (target.classList.contains('proxy-port')) {
+    } else if (field === 'port') {
       updateProxy(id, 'port', parseInt(target.value, 10));
-    } else if (target.classList.contains('proxy-type')) {
+    } else if (field === 'type') {
       updateProxy(id, 'type', target.value);
-    } else if (target.classList.contains('proxy-username')) {
+    } else if (field === 'username') {
       updateProxy(id, 'username', target.value);
-    } else if (target.classList.contains('proxy-password')) {
+    } else if (field === 'password') {
       updateProxy(id, 'password', target.value);
     }
   });
 
   proxiesList.addEventListener('input', (e) => {
     const target = e.target;
+    const field = target.dataset.field;
 
-    if (target.classList.contains('proxy-host')) {
+    if (field === 'host') {
       const value = target.value.trim();
       if (value === '' || isValidProxyHost(value)) {
-        target.classList.remove('invalid-input');
+        target.classList.remove('invalid');
         target.title = '';
       } else {
-        target.classList.add('invalid-input');
+        target.classList.add('invalid');
         target.title = 'Неверный формат IP или hostname';
       }
-    } else if (target.classList.contains('proxy-port')) {
+    } else if (field === 'port') {
       const value = target.value;
       if (value === '' || isValidPort(value)) {
-        target.classList.remove('invalid-input');
+        target.classList.remove('invalid');
         target.title = '';
       } else {
-        target.classList.add('invalid-input');
+        target.classList.add('invalid');
         target.title = 'Порт должен быть от 1 до 65535';
       }
     }
   });
 
   proxiesList.addEventListener('click', (e) => {
-    if (e.target.classList.contains('delete-btn-small')) {
+    if (e.target.classList.contains('proxy-item__delete')) {
       deleteProxy(parseProxyId(e.target.dataset.id));
       return;
     }
@@ -304,7 +325,7 @@ function setupProxiesListHandlers() {
 // Рендер списка прокси (используем DocumentFragment)
 function renderProxies(proxies, activeProxyId) {
   if (proxies.length === 0) {
-    proxiesList.innerHTML = '<div class="empty-state-small">Нет прокси серверов</div>';
+    proxiesList.innerHTML = '<div class="empty-state">Нет прокси серверов</div>';
     return;
   }
 
@@ -317,29 +338,31 @@ function renderProxies(proxies, activeProxyId) {
 
     const isHostValid = !proxy.host || proxy.host.trim() === '' || isValidProxyHost(proxy.host);
     const isPortValid = !proxy.port || isValidPort(proxy.port);
-    const hostClass = isHostValid ? '' : 'invalid-input';
-    const portClass = isPortValid ? '' : 'invalid-input';
+    const hostClass = isHostValid ? '' : 'invalid';
+    const portClass = isPortValid ? '' : 'invalid';
     const proxyId = String(proxy.id);
 
     item.innerHTML = `
-      <div class="proxy-header-row">
-        <input type="radio" name="activeProxy" value="${proxyId}" ${isActive ? 'checked' : ''} class="proxy-radio-input" aria-label="Выбрать прокси ${proxy.name}">
-        <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxyId}" placeholder="Название прокси">
-        <button type="button" class="delete-btn-small" data-id="${proxyId}" title="Удалить">✕</button>
+      <input type="radio" name="activeProxy" value="${proxyId}" ${isActive ? 'checked' : ''} class="proxy-radio" aria-label="Выбрать прокси ${proxy.name}">
+      <div class="proxy-item__body">
+      <div class="proxy-item__row">
+        <input type="text" class="proxy-item__name" value="${proxy.name}" data-id="${proxyId}" placeholder="Название прокси">
+        <button type="button" class="proxy-item__delete" data-id="${proxyId}" title="Удалить">✕</button>
       </div>
-      <div class="proxy-config-row">
-        <input type="text" class="proxy-host ${hostClass}" value="${proxy.host}" data-id="${proxyId}" placeholder="IP адрес или hostname" title="${isHostValid ? '' : 'Неверный формат IP или hostname'}">
-        <input type="number" class="proxy-port ${portClass}" value="${proxy.port}" data-id="${proxyId}" placeholder="Порт" min="1" max="65535" title="${isPortValid ? '' : 'Порт должен быть от 1 до 65535'}">
-        <select class="proxy-type" data-id="${proxyId}">
+      <div class="proxy-item__fields">
+        <input type="text" class="proxy-item__field ${hostClass}" value="${proxy.host}" data-id="${proxyId}" data-field="host" placeholder="IP адрес или hostname" title="${isHostValid ? '' : 'Неверный формат IP или hostname'}">
+        <input type="number" class="proxy-item__field ${portClass}" value="${proxy.port}" data-id="${proxyId}" data-field="port" placeholder="Порт" min="1" max="65535" title="${isPortValid ? '' : 'Порт должен быть от 1 до 65535'}">
+        <select class="proxy-item__field" data-id="${proxyId}" data-field="type">
           <option value="SOCKS5" ${proxy.type === 'SOCKS5' ? 'selected' : ''}>SOCKS5</option>
           <option value="SOCKS" ${proxy.type === 'SOCKS' ? 'selected' : ''}>SOCKS4</option>
           <option value="PROXY" ${proxy.type === 'PROXY' ? 'selected' : ''}>HTTP</option>
           <option value="HTTPS" ${proxy.type === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
         </select>
       </div>
-      <div class="proxy-auth-row">
-        <input type="text" class="proxy-username" value="${proxy.username || ''}" data-id="${proxyId}" placeholder="Логин (опционально)">
-        <input type="password" class="proxy-password" value="${proxy.password || ''}" data-id="${proxyId}" placeholder="Пароль (опционально)">
+      <div class="proxy-item__auth">
+        <input type="text" class="proxy-item__field" value="${proxy.username || ''}" data-id="${proxyId}" data-field="username" placeholder="Логин (опционально)">
+        <input type="password" class="proxy-item__field" value="${proxy.password || ''}" data-id="${proxyId}" data-field="password" placeholder="Пароль (опционально)">
+      </div>
       </div>
     `;
     fragment.appendChild(item);
@@ -423,9 +446,9 @@ addProxyBtn.addEventListener('click', () => {
 // Тест прокси
 testProxyBtn.addEventListener('click', () => {
   proxyTestResult.style.display = 'flex';
-  const textSpan = proxyTestResult.querySelector('.test-result-text');
+  const textSpan = proxyTestResult.querySelector('.test-result__text');
   textSpan.textContent = 'Проверка...';
-  proxyTestResult.className = 'proxy-test-result loading';
+  proxyTestResult.className = 'test-result loading';
   
   chrome.storage.local.get(['proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
     const activeProxy = findProxyById(data.proxies, data.activeProxyId);
@@ -433,19 +456,19 @@ testProxyBtn.addEventListener('click', () => {
     
     if (!extensionEnabled) {
       textSpan.textContent = '✗ Расширение выключено';
-      proxyTestResult.className = 'proxy-test-result error';
+      proxyTestResult.className = 'test-result error';
       return;
     }
     
     if (!activeProxy) {
       textSpan.textContent = '✗ Нет активного прокси';
-      proxyTestResult.className = 'proxy-test-result error';
+      proxyTestResult.className = 'test-result error';
       return;
     }
     
     if (!activeProxy.host || !activeProxy.port || activeProxy.host.trim() === '') {
       textSpan.textContent = `✗ Прокси "${activeProxy.name}" не настроен (укажите IP и порт)`;
-      proxyTestResult.className = 'proxy-test-result error';
+      proxyTestResult.className = 'test-result error';
       return;
     }
     
@@ -455,24 +478,24 @@ testProxyBtn.addEventListener('click', () => {
     }, (response) => {
       if (chrome.runtime.lastError) {
         textSpan.textContent = `✗ Ошибка: ${chrome.runtime.lastError.message}`;
-        proxyTestResult.className = 'proxy-test-result error';
+        proxyTestResult.className = 'test-result error';
         return;
       }
       
       if (response && response.success) {
         textSpan.textContent = `✓ IP через прокси "${activeProxy.name}": ${response.ip}`;
-        proxyTestResult.className = 'proxy-test-result success';
+        proxyTestResult.className = 'test-result success';
       } else {
         const errorMsg = response?.error || 'Connection failed';
         textSpan.textContent = `✗ Прокси "${activeProxy.name}" недоступен (${errorMsg})`;
-        proxyTestResult.className = 'proxy-test-result error';
+        proxyTestResult.className = 'test-result error';
       }
     });
   });
 });
 
 // Кнопка закрытия для proxy test
-proxyTestResult.querySelector('.test-result-close').addEventListener('click', () => {
+proxyTestResult.querySelector('.test-result__close').addEventListener('click', () => {
   proxyTestResult.style.display = 'none';
 });
 
@@ -608,24 +631,24 @@ function renderSites(sites, container, listType) {
       const isExpanded = expandedGroups.has(group.base);
       
       groupDiv.innerHTML = `
-        <div class="domain-group-header" data-group="${group.base}">
-          <div class="expand-icon">${isExpanded ? '▼' : '▶'}</div>
-          <div class="site-name">
+        <div class="domain-group__header" data-group="${group.base}">
+          <div class="domain-group__expand">${isExpanded ? '▼' : '▶'}</div>
+          <div class="site-item__name">
             ${mainSite.value}
-            <span class="subdomain-count enabled">${enabledCount}</span>
-            ${disabledCount > 0 ? `<span class="subdomain-count disabled">${disabledCount}</span>` : ''}
+            <span class="sub-count on">${enabledCount}</span>
+            ${disabledCount > 0 ? `<span class="sub-count off">${disabledCount}</span>` : ''}
           </div>
-          <div class="site-actions">
-            <div class="toggle-switch ${mainSite.enabled ? 'active' : ''}" data-id="${String(mainSite.id)}" data-list="${listType}"></div>
+          <div class="site-item__actions">
+            <div class="site-item__toggle ${mainSite.enabled ? 'active' : ''}" data-id="${String(mainSite.id)}" data-list="${listType}"></div>
             <button type="button" class="delete-btn" data-id="${String(mainSite.id)}" data-list="${listType}">✕</button>
           </div>
         </div>
-        <div class="domain-group-subdomains" style="display: ${isExpanded ? 'block' : 'none'};">
+        <div class="domain-group__subs" style="display: ${isExpanded ? 'block' : 'none'};">
           ${otherSites.map(site => `
             <div class="site-item subdomain-item">
-              <div class="site-name">${site.value}</div>
-              <div class="site-actions">
-                <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
+              <div class="site-item__name">${site.value}</div>
+              <div class="site-item__actions">
+                <div class="site-item__toggle ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
                 <button type="button" class="delete-btn" data-id="${String(site.id)}" data-list="${listType}">✕</button>
               </div>
             </div>
@@ -634,16 +657,16 @@ function renderSites(sites, container, listType) {
       `;
       
       if (isExpanded) {
-        groupDiv.querySelector('.domain-group-header').classList.add('expanded');
+        groupDiv.querySelector('.domain-group__header').classList.add('expanded');
       }
     } else {
       // Одиночный домен
       const site = group.sites[0];
       groupDiv.innerHTML = `
         <div class="site-item">
-          <div class="site-name">${site.value}</div>
-          <div class="site-actions">
-            <div class="toggle-switch ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
+          <div class="site-item__name">${site.value}</div>
+          <div class="site-item__actions">
+            <div class="site-item__toggle ${site.enabled ? 'active' : ''}" data-id="${String(site.id)}" data-list="${listType}"></div>
             <button type="button" class="delete-btn" data-id="${String(site.id)}" data-list="${listType}">✕</button>
           </div>
         </div>
@@ -672,7 +695,7 @@ function setupSiteListHandlers(container) {
       return;
     }
 
-    const toggle = e.target.closest('.toggle-switch');
+    const toggle = e.target.closest('.site-item__toggle');
     if (toggle) {
       e.preventDefault();
       e.stopPropagation();
@@ -681,16 +704,16 @@ function setupSiteListHandlers(container) {
       return;
     }
 
-    const header = e.target.closest('.domain-group-header');
-    if (header && !e.target.closest('.site-actions')) {
+    const header = e.target.closest('.domain-group__header');
+    if (header && !e.target.closest('.site-item__actions')) {
       e.preventDefault();
       e.stopPropagation();
 
       const groupName = header.dataset.group;
       const subdomains = header.nextElementSibling;
-      const icon = header.querySelector('.expand-icon');
+      const icon = header.querySelector('.domain-group__expand');
 
-      if (subdomains && subdomains.classList.contains('domain-group-subdomains')) {
+      if (subdomains && subdomains.classList.contains('domain-group__subs')) {
         if (subdomains.style.display === 'none') {
           subdomains.style.display = 'block';
           icon.textContent = '▼';
@@ -794,7 +817,7 @@ function finalizeAdd(value, list, listKey) {
 addToProxyListBtn.addEventListener('click', () => {
   addToList(proxyListValue.value, 'proxyList');
   proxyListValue.value = '';
-  proxyListValue.classList.remove('invalid-input');
+  proxyListValue.classList.remove('invalid');
 });
 
 proxyListValue.addEventListener('keypress', (e) => {
@@ -811,12 +834,12 @@ proxyListValue.addEventListener('input', () => {
     }
     
     if (isValidDomain(value)) {
-      proxyListValue.classList.remove('invalid-input');
+      proxyListValue.classList.remove('invalid');
     } else {
-      proxyListValue.classList.add('invalid-input');
+      proxyListValue.classList.add('invalid');
     }
   } else {
-    proxyListValue.classList.remove('invalid-input');
+    proxyListValue.classList.remove('invalid');
   }
 });
 
@@ -824,7 +847,7 @@ proxyListValue.addEventListener('input', () => {
 addToDirectListBtn.addEventListener('click', () => {
   addToList(directListValue.value, 'directList');
   directListValue.value = '';
-  directListValue.classList.remove('invalid-input');
+  directListValue.classList.remove('invalid');
 });
 
 directListValue.addEventListener('keypress', (e) => {
@@ -841,12 +864,12 @@ directListValue.addEventListener('input', () => {
     }
     
     if (isValidDomain(value)) {
-      directListValue.classList.remove('invalid-input');
+      directListValue.classList.remove('invalid');
     } else {
-      directListValue.classList.add('invalid-input');
+      directListValue.classList.add('invalid');
     }
   } else {
-    directListValue.classList.remove('invalid-input');
+    directListValue.classList.remove('invalid');
   }
 });
 
@@ -1159,9 +1182,6 @@ if (mainToggle) {
 // Инициализация
 loadData();
 
-// Очищаем бейдж при открытии попапа
-chrome.runtime.sendMessage({ action: 'clearBadge' });
-
 // Авто-прокси переключатель
 const autoProxyToggle = document.getElementById('autoProxyToggle');
 if (autoProxyToggle) {
@@ -1178,6 +1198,35 @@ if (autoProxyToggle) {
   });
 }
 
+// Таймаут автопрокси переключатель
+const autoProxyTimeoutToggle = document.getElementById('autoProxyTimeoutToggle');
+if (autoProxyTimeoutToggle) {
+  autoProxyTimeoutToggle.addEventListener('click', () => {
+    const newState = !cachedData.autoProxyTimeoutEnabled;
+    cachedData.autoProxyTimeoutEnabled = newState;
+    chrome.storage.local.set({ autoProxyTimeoutEnabled: newState }, () => {
+      if (newState) {
+        autoProxyTimeoutToggle.classList.add('active');
+      } else {
+        autoProxyTimeoutToggle.classList.remove('active');
+      }
+    });
+  });
+}
+
+// Таймаут автопрокси значение
+const autoProxyTimeoutInput = document.getElementById('autoProxyTimeout');
+if (autoProxyTimeoutInput) {
+  autoProxyTimeoutInput.addEventListener('change', () => {
+    let val = parseInt(autoProxyTimeoutInput.value, 10);
+    if (isNaN(val) || val < 2) val = 2;
+    if (val > 30) val = 30;
+    autoProxyTimeoutInput.value = val;
+    cachedData.autoProxyTimeout = val;
+    chrome.storage.local.set({ autoProxyTimeout: val });
+  });
+}
+
 // Устанавливаем обработчики событий для списков (один раз)
 setupSiteListHandlers(proxyListSites);
 setupSiteListHandlers(directListSites);
@@ -1185,6 +1234,8 @@ setupSiteListHandlers(directListSites);
 // Загрузка версии в футер
 const manifest = chrome.runtime.getManifest();
 document.getElementById('footerVersion').textContent = manifest.version;
+const footerVer = document.getElementById('footerVersionFooter');
+if (footerVer) footerVer.textContent = 'v' + manifest.version;
 
 
 // Обновление placeholder при изменении типа
@@ -1328,14 +1379,14 @@ function showTopDomains(domains) {
     .slice(0, 10);
   
   if (sortedDomains.length === 0) {
-    topDomainsList.innerHTML = '<div class="empty-state-small">Нет данных</div>';
+    topDomainsList.innerHTML = '<div class="empty-state">Нет данных</div>';
     return;
   }
   
   topDomainsList.innerHTML = '';
   sortedDomains.forEach((item, index) => {
     const div = document.createElement('div');
-    div.className = 'top-domain-item';
+    div.className = 'top-item';
     
     // Определяем основной тип маршрутизации
     const routeType = item.proxy > item.direct ? 'proxy' : 'direct';
@@ -1343,9 +1394,9 @@ function showTopDomains(domains) {
     const routeLabel = item.proxy > item.direct ? 'Прокси' : 'Напрямую';
     
     div.innerHTML = `
-      <div class="top-domain-rank">${index + 1}</div>
-      <div class="top-domain-name">${item.domain}</div>
-      <span class="domain-route-badge ${routeType}">${routeIcon} ${routeLabel}: ${item.total}</span>
+      <div class="top-item__rank">${index + 1}</div>
+      <div class="top-item__name">${item.domain}</div>
+      <span class="top-item__badge ${routeType}">${routeIcon} ${routeLabel}: ${item.total}</span>
     `;
     
     topDomainsList.appendChild(div);
@@ -1356,11 +1407,9 @@ function showTopDomains(domains) {
 const resetStatsBtn = document.getElementById('resetStats');
 if (resetStatsBtn) {
   resetStatsBtn.addEventListener('click', () => {
-    if (confirm('Сбросить всю статистику?')) {
-      chrome.runtime.sendMessage({ action: 'resetStats' }, () => {
-        loadStats();
-      });
-    }
+    chrome.runtime.sendMessage({ action: 'resetStats' }, () => {
+      loadStats();
+    });
   });
 }
 
@@ -1378,9 +1427,10 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
     
     if (relatedDomains.length === 0) {
       relatedDomainsList.innerHTML = `
-        <div class="related-domains-empty">
-          <div>📭 Не найдено связанных доменов</div></br>
-          <div class="related-domains-hint">Основной домен: <strong>${mainDomain}</strong></div>
+        <div class="empty-state">
+          <div class="empty-state__icon">📭</div>
+          <div>Не найдено связанных доменов</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--fg-dim)">Основной домен: <strong>${mainDomain}</strong></div>
         </div>
       `;
       document.getElementById('relatedDomainsActions').style.display = 'none';
@@ -1393,9 +1443,8 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
       const directList = data.directList || [];
       
       relatedDomainsList.innerHTML = `
-        <div class="related-domains-hint">
-          Основной домен: <strong>${mainDomain}</strong><br>
-          Найдено связанных доменов: <strong>${relatedDomains.length}</strong>
+        <div class="hint">
+          Основной домен: <strong>${mainDomain}</strong> · Найдено: <strong>${relatedDomains.length}</strong>
         </div>
       `;
       
@@ -1410,7 +1459,7 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
         }
         
         const item = document.createElement('div');
-        item.className = 'related-domain-item';
+        item.className = 'related-item';
         
         let statusBadge = '';
         if (inProxyList) {
@@ -1424,11 +1473,11 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
         const wildcardHint = isWildcard ? '<span class="domain-badge wildcard">Wildcard</span>' : '';
         
         item.innerHTML = `
-          <div class="related-domain-name">${domain} ${wildcardHint} ${statusBadge}</div>
-          <div class="related-domain-actions">
+          <div class="related-item__name">${domain} ${wildcardHint} ${statusBadge}</div>
+          <div class="related-item__actions">
             ${!inProxyList && !inDirectList ? `
-              <button class="add-related-btn proxy" data-domain="${domain}">+ Прокси</button>
-              <button class="add-related-btn direct" data-domain="${domain}">+ Напрямую</button>
+              <button class="btn-outline btn-s color-proxy" data-domain="${domain}">+ Прокси</button>
+              <button class="btn-outline btn-s color-direct" data-domain="${domain}">+ Напрямую</button>
             ` : ''}
           </div>
         `;
@@ -1441,14 +1490,14 @@ analyzeCurrentPageBtn.addEventListener('click', () => {
       actionsBlock.style.display = hasUnaddedDomains ? 'flex' : 'none';
       
       // Обработчики для кнопок добавления
-      document.querySelectorAll('.add-related-btn.proxy').forEach(btn => {
+      document.querySelectorAll('.related-item__actions .color-proxy').forEach(btn => {
         btn.addEventListener('click', () => {
           addToList(btn.dataset.domain, 'proxyList');
           analyzeCurrentPageBtn.click(); // Обновляем список
         });
       });
       
-      document.querySelectorAll('.add-related-btn.direct').forEach(btn => {
+      document.querySelectorAll('.related-item__actions .color-direct').forEach(btn => {
         btn.addEventListener('click', () => {
           addToList(btn.dataset.domain, 'directList');
           analyzeCurrentPageBtn.click(); // Обновляем список

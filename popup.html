@@ -3,276 +3,257 @@
 <head>
   <meta charset="UTF-8">
   <title>🛡️ Proxy Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <h1>🛡️ Proxy Manager</h1>
-    
-    <!-- Вкладки -->
+    <header class="topbar">
+      <h1>🛡️ Proxy Manager</h1>
+
+    </header>
+
     <div class="tabs">
       <button class="tab-btn active" data-tab="settings">⚙️ Настройки</button>
       <button class="tab-btn" data-tab="stats">📊 Статистика</button>
       <button class="tab-btn" data-tab="logs">📋 Логи</button>
       <div class="tabs-actions">
-        <button id="exportConfig" class="icon-btn" title="Экспорт конфигурации">💾</button>
-        <button id="importConfig" class="icon-btn" title="Импорт конфигурации">📂</button>
+        <button id="exportConfig" class="btn-icon" title="Экспорт">💾</button>
+        <button id="importConfig" class="btn-icon" title="Импорт">📂</button>
       </div>
     </div>
 
-    <!-- Вкладка Настройки -->
-    <div id="settings" class="tab-content active">
-    
-    <!-- Настройки прокси -->
-    <div class="proxy-settings">
-      <div class="proxy-header">
-        <h3>
-          Прокси серверы
-          <span class="extension-status-badge" id="extensionStatusBadge">Включено</span>
-        </h3>
-        <div>
-          <button id="testProxy" class="icon-btn" title="Проверить IP через выбранный прокси">🔍</button>
-          <button id="addProxy" class="icon-btn" title="Добавить прокси">➕</button>
-          <div class="toggle-switch active" id="mainToggle" title="Включить/выключить расширение"></div>
-        </div>
-      </div>
-      <div id="proxyTestResult" class="proxy-test-result" style="display: none;">
-        <span class="test-result-text"></span>
-        <button class="test-result-close">✕</button>
-      </div>
-      <div id="proxiesList" class="proxies-list">
-        <!-- Список прокси -->
-      </div>
-    </div>
-
-    <!-- Подвкладки для списков -->
-    <div class="subtabs">
-      <button class="subtab-btn active" data-subtab="proxylist">🔒 Через прокси</button>
-      <button class="subtab-btn" data-subtab="directlist">✅ Напрямую</button>
-      <button class="subtab-btn" data-subtab="autoproxy">⚡ Авто-прокси</button>
-    </div>
-
-    <!-- Список для прокси -->
-    <div id="proxylist" class="subtab-content active">
-      <div class="sites-section">
-        <div class="sites-header">
-          <h3>Сайты через прокси</h3>
-          <div>
-            <button id="analyzeCurrentPage" class="analyze-btn" title="Найти все домены на текущей странице">
-              🔍 Анализ страницы
-            </button>
-          </div>
-        </div>
-        
-        <!-- Блок анализа связанных доменов -->
-        <div id="relatedDomainsSection" class="related-domains-section" style="display: none;">
-          <div class="related-domains-header">
-            <h4>🔗 Связанные домены на странице</h4>
-            <div class="related-domains-controls">
-              <label class="auto-add-checkbox" title="При добавлении домена через контекстное меню автоматически добавятся все связанные домены">
-                <input type="checkbox" id="autoAddRelated">
-                <span>Автодобавление</span>
-              </label>
-              <button id="hideRelatedDomains" class="icon-btn-small" title="Скрыть">✕</button>
+    <!-- Настройки -->
+      <div id="settings" class="tab-content active">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              Прокси серверы
+              <span class="status-badge" id="extensionStatusBadge">Включено</span>
+            </h3>
+            <div class="card-actions">
+              <button id="testProxy" class="btn-icon" title="Проверить IP">🔍</button>
+              <button id="addProxy" class="btn-icon" title="Добавить прокси">➕</button>
+              <div class="toggle active" id="mainToggle" title="Включить/выключить расширение"></div>
             </div>
           </div>
-          <div id="relatedDomainsList" class="related-domains-list">
-            <!-- Список связанных доменов -->
+          <div id="proxyTestResult" class="test-result" style="display: none;">
+            <span class="test-result__text"></span>
+            <button class="test-result__close">✕</button>
           </div>
-          <div id="relatedDomainsActions" class="related-domains-actions" style="display: none;">
-            <button id="addAllToProxy" class="bulk-add-btn proxy">➕ Добавить все в прокси</button>
-            <button id="addAllToDirect" class="bulk-add-btn direct">➕ Добавить все напрямую</button>
-          </div>
-        </div>
-        
-        <div class="site-hint">
-          💡 Эти сайты будут открываться через прокси
+          <div id="proxiesList" class="proxy-list"></div>
         </div>
 
-        <div class="add-site">
-          <select id="proxyListType" class="site-type-select">
-            <option value="domain">Домен</option>
-            <option value="ip">IP</option>
-            <option value="url">URL</option>
-          </select>
-          <input type="text" id="proxyListValue" placeholder="google.com, *.ru, 2ip.ru">
-          <button id="addToProxyList">Добавить</button>
-        </div>
-        
-        <div class="search-box">
-          <input type="text" id="proxyListSearch" placeholder="🔍 Поиск по списку..." class="search-input">
-          <span class="search-count" id="proxyListCount"></span>
-        </div>
-
-        <div class="sites-list" id="proxyListSites">
-          <!-- Список будет здесь -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Список для direct -->
-    <div id="directlist" class="subtab-content">
-      <div class="sites-section">
-        <div class="sites-header">
-          <h3>Сайты напрямую</h3>
-        </div>
-        
-        <div class="site-hint">
-          💡 Эти сайты всегда будут открываться напрямую (приоритет выше)
-        </div>
-        
-        <div class="add-site">
-          <select id="directListType" class="site-type-select">
-            <option value="domain">Домен</option>
-            <option value="ip">IP</option>
-            <option value="url">URL</option>
-          </select>
-          <input type="text" id="directListValue" placeholder="localhost, 127.0.0.1, *.local">
-          <button id="addToDirectList">Добавить</button>
-        </div>
-        
-        
-        <div class="search-box">
-          <input type="text" id="directListSearch" placeholder="🔍 Поиск по списку..." class="search-input">
-          <span class="search-count" id="directListCount"></span>
-        </div>
-
-        <div class="sites-list" id="directListSites">
-          <!-- Список будет здесь -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Авто-прокси -->
-    <div id="autoproxy" class="subtab-content">
-      <div class="sites-section">
-        <div class="sites-header">
-          <h3>⚡ Авто-прокси</h3>
-        </div>
-
-        <div id="autoProxyInfo" class="auto-proxy-info">
-          <div class="auto-proxy-desc">
-            <p>Авто-прокси автоматически добавляет сайт в список прокси, если он недоступен напрямую.</p>
-            <ul>
-              <li>Срабатывает при ошибках: DNS не найден, соединение сброшено, таймаут</li>
-              <li>Домен нормализуется (cdn3.example.com → *.example.com)</li>
-              <li>Страница перезагружается через прокси</li>
-              <li>На иконке отображается <span class="auto-badge-demo">A</span></li>
-            </ul>
+        <div class="card">
+          <div class="subtabs">
+            <button class="subtab-btn active" data-subtab="proxylist">🔒 Через прокси</button>
+            <button class="subtab-btn" data-subtab="directlist">✅ Напрямую</button>
+            <button class="subtab-btn" data-subtab="autoproxy">⚡ Авто-прокси</button>
           </div>
 
-          <div class="auto-proxy-row">
-            <span class="auto-proxy-label-text">⚡ Авто-прокси</span>
-            <div class="toggle-switch active" id="autoProxyToggle"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
-    <!-- Конец вкладки Настройки -->
+          <div id="proxylist" class="subtab-content active">
+            <div class="card-body">
+              <div class="section-header">
+                <span class="section-title">Сайты через прокси</span>
+                <button id="analyzeCurrentPage" class="btn-outline btn-s">🔍 Анализ</button>
+              </div>
 
-    <!-- Вкладка Статистика -->
-    <div id="stats" class="tab-content">
-      <div class="stats-section">
-        <h3>📊 Статистика использования</h3>
-        
-        <!-- Счётчики -->
-        <div class="stats-counters">
-          <div class="stat-card proxy">
-            <div class="stat-icon">🔒</div>
-            <div class="stat-info">
-              <div class="stat-value" id="proxyCount">0</div>
-              <div class="stat-label">Через прокси</div>
+              <div id="relatedDomainsSection" class="related-box" style="display: none;">
+                <div class="related-box__header">
+                  <span>🔗 Связанные домены</span>
+                  <div class="related-box__controls">
+                    <label class="check-label">
+                      <input type="checkbox" id="autoAddRelated">
+                      <span>Авто</span>
+                    </label>
+                    <button id="hideRelatedDomains" class="btn-close" title="Скрыть">✕</button>
+                  </div>
+                </div>
+                <div id="relatedDomainsList" class="related-box__list"></div>
+                <div id="relatedDomainsActions" class="related-box__actions" style="display: none;">
+                  <button id="addAllToProxy" class="btn-outline btn-s color-proxy">➕ Все в прокси</button>
+                  <button id="addAllToDirect" class="btn-outline btn-s color-direct">➕ Все напрямую</button>
+                </div>
+              </div>
+
+              <div class="info-block">💡 Эти сайты будут открываться через прокси</div>
+
+              <div class="add-row">
+                <select id="proxyListType" class="select-s">
+                  <option value="domain">Домен</option>
+                  <option value="ip">IP</option>
+                  <option value="url">URL</option>
+                </select>
+                <input type="text" id="proxyListValue" class="input-s" placeholder="google.com, *.ru, 2ip.ru">
+                <button id="addToProxyList" class="btn-primary btn-s">Добавить</button>
+              </div>
+
+              <div class="search">
+                <span class="search__icon">🔍</span>
+                <input type="text" id="proxyListSearch" placeholder="Поиск по списку..." class="search__input">
+                <span class="search__count" id="proxyListCount"></span>
+              </div>
+
+              <div class="site-list" id="proxyListSites"></div>
             </div>
           </div>
-          <div class="stat-card direct">
-            <div class="stat-icon">✅</div>
-            <div class="stat-info">
-              <div class="stat-value" id="directCount">0</div>
-              <div class="stat-label">Напрямую</div>
+
+          <div id="directlist" class="subtab-content">
+            <div class="card-body">
+              <div class="section-header">
+                <span class="section-title">Сайты напрямую</span>
+              </div>
+
+              <div class="info-block">💡 Эти сайты всегда будут открываться напрямую (приоритет выше)</div>
+
+              <div class="add-row">
+                <select id="directListType" class="select-s">
+                  <option value="domain">Домен</option>
+                  <option value="ip">IP</option>
+                  <option value="url">URL</option>
+                </select>
+                <input type="text" id="directListValue" class="input-s" placeholder="localhost, 127.0.0.1, *.local">
+                <button id="addToDirectList" class="btn-primary btn-s">Добавить</button>
+              </div>
+
+              <div class="search">
+                <span class="search__icon">🔍</span>
+                <input type="text" id="directListSearch" placeholder="Поиск по списку..." class="search__input">
+                <span class="search__count" id="directListCount"></span>
+              </div>
+
+              <div class="site-list" id="directListSites"></div>
             </div>
           </div>
-          <div class="stat-card total">
-            <div class="stat-icon">📈</div>
-            <div class="stat-info">
-              <div class="stat-value" id="totalCount">0</div>
-              <div class="stat-label">Всего запросов</div>
+
+          <div id="autoproxy" class="subtab-content">
+            <div class="card-body">
+              <div class="section-header">
+                <span class="section-title">⚡ Авто-прокси</span>
+                <div class="toggle active" id="autoProxyToggle"></div>
+              </div>
+
+              <div class="info-block">
+                <p>Авто-прокси автоматически добавляет сайт в список прокси, если он недоступен напрямую:</p>
+                <ul>
+                  <li>Срабатывает при ошибках: DNS не найден, соединение сброшено, таймаут</li>
+                  <li>Домен нормализуется: <code>cdn3.example.com</code> → <code>*.example.com</code></li>
+                  <li>Страница перезагружается через прокси</li>
+                  <li>На иконке отображается <span class="badge-a">A</span></li>
+                </ul>
+              </div>
+
+              <div class="section-header" style="margin-top:14px">
+                <span class="section-title">⏱ Таймаут загрузки</span>
+                <div class="toggle" id="autoProxyTimeoutToggle"></div>
+              </div>
+
+              <div class="info-block">
+                <p>Если страница или её ресурсы не загрузились за указанное время — домены с ошибками будут добавлены в список прокси:</p>
+              </div>
+
+              <div class="add-row">
+                <label class="add-row__label">Задержка (сек):</label>
+                <input type="number" id="autoProxyTimeout" class="input-s" value="5" min="2" max="30" step="1">
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- График активности -->
-        <div class="activity-chart">
-          <h4>График активности (последний час)</h4>
-          <canvas id="activityChart" width="500" height="200"></canvas>
-        </div>
+      <!-- Статистика -->
+      <div id="stats" class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📊 Статистика использования</h3>
+          </div>
+          <div class="card-body">
+            <div class="stat-grid">
+              <div class="stat-block stat-block--proxy">
+                <div class="stat-block__icon">🔒</div>
+                <div>
+                  <div class="stat-block__value" id="proxyCount">0</div>
+                  <div class="stat-block__label">Через прокси</div>
+                </div>
+              </div>
+              <div class="stat-block stat-block--direct">
+                <div class="stat-block__icon">✅</div>
+                <div>
+                  <div class="stat-block__value" id="directCount">0</div>
+                  <div class="stat-block__label">Напрямую</div>
+                </div>
+              </div>
+              <div class="stat-block stat-block--total">
+                <div class="stat-block__icon">📈</div>
+                <div>
+                  <div class="stat-block__value" id="totalCount">0</div>
+                  <div class="stat-block__label">Всего</div>
+                </div>
+              </div>
+            </div>
 
-        <!-- Топ доменов -->
-        <div class="top-domains">
-          <h4>Топ-10 доменов</h4>
-          <div id="topDomainsList" class="top-domains-list">
-            <!-- Список топ доменов -->
+            <div class="chart-wrap">
+              <h4 class="block-title">Активность за последний час</h4>
+              <canvas id="activityChart" width="500" height="180"></canvas>
+            </div>
+
+            <div class="top-wrap">
+              <h4 class="block-title">Топ-10 доменов</h4>
+              <div id="topDomainsList" class="top-list"></div>
+            </div>
+
+            <button id="resetStats" class="btn-danger">🗑️ Сбросить</button>
           </div>
         </div>
-
-        <button id="resetStats" class="reset-stats-btn">🗑️ Сбросить статистику</button>
       </div>
-    </div>
-    <!-- Конец вкладки Статистика -->
 
-    <!-- Вкладка Логи -->
-    <div id="logs" class="tab-content">
-      <div class="logs-section">
-        <div class="logs-header">
-          <h3>Логи маршрутизации</h3>
-          <div class="logs-controls">
-            <select id="logFilter" class="log-filter">
-              <option value="all">Все</option>
-              <option value="PROXY">Только PROXY</option>
-              <option value="DIRECT">Только DIRECT</option>
-              <option value="CONFIG">Конфигурация</option>
-              <option value="ERROR">Ошибки</option>
-            </select>
-            <button id="exportLogs" class="icon-btn" title="Скачать логи">💾</button>
-            <button id="clearLogs" class="icon-btn danger" title="Очистить логи">🗑️</button>
+      <!-- Логи -->
+      <div id="logs" class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📋 Логи маршрутизации</h3>
+            <div class="card-actions">
+              <select id="logFilter" class="select-s">
+                <option value="all">Все</option>
+                <option value="PROXY">PROXY</option>
+                <option value="DIRECT">DIRECT</option>
+                <option value="CONFIG">Конфиг</option>
+                <option value="ERROR">Ошибки</option>
+              </select>
+              <button id="exportLogs" class="btn-icon" title="Скачать логи">💾</button>
+              <button id="clearLogs" class="btn-icon is-danger" title="Очистить логи">🗑️</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-wrap">
+              <table class="log-table">
+                <thead>
+                  <tr>
+                    <th>Время</th>
+                    <th>Тип</th>
+                    <th>Домен</th>
+                    <th>Правило</th>
+                    <th>Маршрут</th>
+                  </tr>
+                </thead>
+                <tbody id="logsTableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <div class="logs-table-container">
-          <table class="logs-table">
-            <thead>
-              <tr>
-                <th>Время</th>
-                <th>Тип</th>
-                <th>Домен</th>
-                <th>Правило</th>
-                <th>Маршрут</th>
-              </tr>
-            </thead>
-            <tbody id="logsTableBody">
-              <!-- Логи будут здесь -->
-            </tbody>
-          </table>
-        </div>
       </div>
-    </div>
-    <!-- Конец вкладки Логи -->
 
-    <!-- Футер с информацией о версии -->
-    <div class="footer">
-      <div class="footer-version">
-        <span class="footer-label">Версия:</span>
-        <span class="footer-value" id="footerVersion">—</span>
-      </div>
-      <div class="footer-links">
-        <a href="https://github.com/prasx/chrome-proxy-manager" target="_blank" class="footer-link" title="GitHub репозиторий">
-          📦 GitHub
-        </a>
-        <a href="https://github.com/prasx/chrome-proxy-manager/releases" target="_blank" class="footer-link" title="Проверить обновления">
-          🔔 Обновления
-        </a>
-        <a href="https://github.com/prasx/chrome-proxy-manager/issues" target="_blank" class="footer-link" title="Сообщить об ошибке">
-          🐛 Баг-репорт
-        </a>
+    <div class="card card--footer">
+      <div class="footer">
+        <span class="version-tag" id="footerVersion">—</span>
+        <div class="footer__links">
+          <a href="https://github.com/prasx/chrome-proxy-manager" target="_blank" class="footer__link" title="GitHub">📦 GitHub</a>
+          <a href="https://github.com/prasx/chrome-proxy-manager/releases" target="_blank" class="footer__link" title="Обновления">🔔 Обновления</a>
+          <a href="https://github.com/prasx/chrome-proxy-manager/issues" target="_blank" class="footer__link" title="Баг-репорт">🐛 Баг-репорт</a>
+        </div>
       </div>
     </div>
   </div>

@@ -34,6 +34,8 @@ let cachedConfig = {
   autoProxyEnabled: false
 };
 
+loadConfigFromStorage(() => applyProxyConfig());
+
 function loadConfigFromStorage(cb) {
   chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled'], (data) => {
     cachedConfig.proxyList = data.proxyList || [];
@@ -318,7 +320,7 @@ initStats();
 
 // ============= ИНИЦИАЛИЗАЦИЯ =============
 chrome.runtime.onInstalled.addListener((details) => {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate', 'extensionEnabled'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'installDate', 'lastUpdateDate', 'extensionEnabled', 'autoProxyEnabled', 'autoProxyTimeoutEnabled', 'autoProxyTimeout'], (data) => {
     const defaultProxies = data.proxies || [
       { id: crypto.randomUUID(), name: 'Default', host: '127.0.0.1', port: 1080, type: 'SOCKS5', enabled: true }
     ];
@@ -334,7 +336,9 @@ chrome.runtime.onInstalled.addListener((details) => {
       proxies: defaultProxies,
       activeProxyId,
       extensionEnabled: data.extensionEnabled !== false,
-      autoProxyEnabled: false
+      autoProxyEnabled: data.autoProxyEnabled === true,
+      autoProxyTimeoutEnabled: data.autoProxyTimeoutEnabled === true,
+      autoProxyTimeout: parseInt(data.autoProxyTimeout, 10) || 5
     };
 
     if (!data.installDate) defaults.installDate = Date.now();
@@ -346,7 +350,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       cachedConfig.proxies = defaults.proxies;
       cachedConfig.activeProxyId = defaults.activeProxyId;
       cachedConfig.extensionEnabled = defaults.extensionEnabled;
-      cachedConfig.autoProxyEnabled = false;
+      cachedConfig.autoProxyEnabled = defaults.autoProxyEnabled;
       applyProxyConfig();
     });
   });
@@ -447,6 +451,12 @@ chrome.webRequest.onBeforeRequest.addListener(
           const first = set.values().next().value;
           set.delete(first);
         }
+
+        // Track pending request for timeout auto-proxy
+        const timerState = tabLoadTimers.get(details.tabId);
+        if (timerState) {
+          timerState.pendingRequests.set(details.requestId, host);
+        }
       }
 
       if (details.type !== 'main_frame' && details.type !== 'sub_frame') return;
@@ -485,8 +495,17 @@ chrome.webRequest.onBeforeRequest.addListener(
         updateStats(routeType, host);
         if (details.type === 'main_frame') {
           if (routeType === 'PROXY') showBadge('P', '#34a853');
-          else clearBadge();
+          else showBadge('D', '#ea8600');
         }
+      }
+
+      if (details.type === 'main_frame') {
+        // Create timer state synchronously so sub-resources are tracked immediately
+        if (tabLoadTimers.has(details.tabId)) {
+          clearTimeout(tabLoadTimers.get(details.tabId).timeoutId);
+        }
+        tabLoadTimers.set(details.tabId, { mainDomain: host, timeoutId: null, pendingRequests: new Map() });
+        startAutoProxyTimer(details.tabId, host);
       }
     } catch (e) {
       console.error('Request analysis error:', e);
@@ -558,6 +577,72 @@ chrome.webNavigation.onErrorOccurred.addListener((details) => {
   });
 });
 
+// ============= AUTO-PROXY TIMEOUT =============
+const tabLoadTimers = new Map();
+
+function startAutoProxyTimer(tabId, mainDomain) {
+  chrome.storage.local.get(['autoProxyTimeoutEnabled', 'autoProxyTimeout'], (data) => {
+    if (!data.autoProxyTimeoutEnabled) {
+      tabLoadTimers.delete(tabId);
+      return;
+    }
+
+    const existing = tabLoadTimers.get(tabId);
+    if (!existing) return;
+
+    const timeoutMs = (parseInt(data.autoProxyTimeout, 10) || 5) * 1000;
+
+    existing.timeoutId = setTimeout(() => {
+      const state = tabLoadTimers.get(tabId);
+      if (!state) return;
+      tabLoadTimers.delete(tabId);
+
+      // Collect domains from stuck (still-pending) requests
+      const stuckDomains = new Set();
+      for (const domain of state.pendingRequests.values()) {
+        stuckDomains.add(domain);
+      }
+      if (stuckDomains.size === 0) return;
+
+      const domainsToAdd = [...stuckDomains].map(d => normalizeDomain(d));
+      chrome.storage.local.get(['proxyList'], (sd) => {
+        let proxyList = sd.proxyList || [];
+        let added = [];
+
+        for (const d of domainsToAdd) {
+          if (proxyList.some(s => s.value === d)) continue;
+          proxyList.push({ id: crypto.randomUUID(), value: d, enabled: true });
+          added.push(d);
+        }
+
+        if (added.length === 0) return;
+
+        chrome.storage.local.set({ proxyList }, () => {
+          logRoute('AUTO', 'Auto-proxy (timeout)', `${state.mainDomain} → ${added.join(', ')} (${timeoutMs/1000}s)`);
+          showBadge('A', '#1a73e8');
+          chrome.notifications.create({
+            type: 'basic', iconUrl: 'logo.png',
+            title: 'Auto Proxy',
+            message: `${added.join(', ')} — добавлены через авто-прокси (${timeoutMs/1000}с)`
+          });
+          setTimeout(() => chrome.tabs.reload(tabId, { bypassCache: true }), 1000);
+        });
+      });
+    }, timeoutMs);
+  });
+}
+
+// Clean up pending requests for timeout auto-proxy
+chrome.webRequest.onCompleted.addListener((details) => {
+  const state = tabLoadTimers.get(details.tabId);
+  if (state) state.pendingRequests.delete(details.requestId);
+}, { urls: ['<all_urls>'] });
+
+chrome.webRequest.onErrorOccurred.addListener((details) => {
+  const state = tabLoadTimers.get(details.tabId);
+  if (state) state.pendingRequests.delete(details.requestId);
+}, { urls: ['<all_urls>'] });
+
 // ============= ОБРАБОТЧИК СООБЩЕНИЙ =============
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'getRelatedDomains') {
@@ -613,11 +698,11 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         scope: 'regular'
       }, () => {
         setTimeout(() => {
-          fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
+          fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(15000) })
             .then(r => r.json())
             .then(result => restore(() => sendResponse({ success: true, ip: result.ip })))
             .catch(err => restore(() => sendResponse({ success: false, error: err.message })));
-        }, 500);
+        }, 1500);
       });
     });
     return true;
