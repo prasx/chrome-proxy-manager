@@ -30,16 +30,18 @@ let cachedConfig = {
   directList: [],
   proxies: [],
   activeProxyId: null,
-  extensionEnabled: true
+  extensionEnabled: true,
+  autoProxyEnabled: false
 };
 
 function loadConfigFromStorage(cb) {
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled'], (data) => {
     cachedConfig.proxyList = data.proxyList || [];
     cachedConfig.directList = data.directList || [];
     cachedConfig.proxies = data.proxies || [];
     cachedConfig.activeProxyId = data.activeProxyId;
     cachedConfig.extensionEnabled = data.extensionEnabled !== false;
+    cachedConfig.autoProxyEnabled = data.autoProxyEnabled === true;
     if (cb) cb();
   });
 }
@@ -331,7 +333,8 @@ chrome.runtime.onInstalled.addListener((details) => {
       directList: data.directList || [],
       proxies: defaultProxies,
       activeProxyId,
-      extensionEnabled: data.extensionEnabled !== false
+      extensionEnabled: data.extensionEnabled !== false,
+      autoProxyEnabled: false
     };
 
     if (!data.installDate) defaults.installDate = Date.now();
@@ -343,6 +346,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       cachedConfig.proxies = defaults.proxies;
       cachedConfig.activeProxyId = defaults.activeProxyId;
       cachedConfig.extensionEnabled = defaults.extensionEnabled;
+      cachedConfig.autoProxyEnabled = false;
       applyProxyConfig();
     });
   });
@@ -419,7 +423,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // ============= СЛУШАТЕЛЬ STORAGE =============
 chrome.storage.onChanged.addListener((changes) => {
-  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled'];
+  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled'];
   if (!relevant.some(k => changes[k])) return;
 
   loadConfigFromStorage(() => applyProxyConfig());
@@ -479,6 +483,10 @@ chrome.webRequest.onBeforeRequest.addListener(
         const proxyInfo = activeProxy ? `${activeProxy.type} ${activeProxy.host}:${activeProxy.port}` : 'DIRECT';
         logRoute('REQUEST', routeType, `${host} -> ${proxyInfo} (matched: ${matchedSite})`);
         updateStats(routeType, host);
+        if (details.type === 'main_frame') {
+          if (routeType === 'PROXY') showBadge('P', '#34a853');
+          else clearBadge();
+        }
       }
     } catch (e) {
       console.error('Request analysis error:', e);
@@ -495,6 +503,60 @@ if (chrome.webNavigation) {
     if (details.frameId === 0) tabDomains.delete(details.tabId);
   });
 }
+
+// ============= AUTO-PROXY =============
+const RETRYABLE_ERRORS = [
+  'net::ERR_NAME_NOT_RESOLVED', 'net::ERR_CONNECTION_REFUSED',
+  'net::ERR_CONNECTION_TIMED_OUT', 'net::ERR_CONNECTION_RESET',
+  'net::ERR_ADDRESS_UNREACHABLE', 'net::ERR_NETWORK_ACCESS_DENIED',
+  'net::ERR_CONNECTION_CLOSED', 'net::ERR_NAME_UNRESOLVED'
+];
+
+function showBadge(text, bgColor) {
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color: bgColor });
+}
+
+function clearBadge() {
+  chrome.action.setBadgeText({ text: '' });
+}
+
+const autoProxiedDomains = new Set();
+
+chrome.webNavigation.onErrorOccurred.addListener((details) => {
+  if (details.frameId !== 0) return;
+  const url = details.url;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+  if (!RETRYABLE_ERRORS.some(e => details.error && details.error.includes(e))) return;
+
+  let domain;
+  try { domain = new URL(url).hostname; } catch (e) { return; }
+
+  const normalized = normalizeDomain(domain);
+  if (autoProxiedDomains.has(normalized)) return;
+
+  chrome.storage.local.get(['proxyList', 'directList', 'extensionEnabled', 'autoProxyEnabled'], (data) => {
+    if (data.extensionEnabled === false) return;
+    if (!data.autoProxyEnabled) return;
+    if ((data.proxyList || []).some(s => s.value === normalized)) return;
+    if ((data.directList || []).some(s => s.value === normalized)) return;
+
+    autoProxiedDomains.add(normalized);
+
+    const proxyList = data.proxyList || [];
+    proxyList.push({ id: crypto.randomUUID(), value: normalized, enabled: true });
+    chrome.storage.local.set({ proxyList }, () => {
+      logRoute('AUTO', 'Auto-proxy', `${domain} → ${normalized} (${details.error})`);
+      showBadge('A', '#1a73e8');
+      chrome.notifications.create({
+        type: 'basic', iconUrl: 'logo.png',
+        title: 'Auto Proxy',
+        message: `${normalized} — добавлен в список прокси`
+      });
+      setTimeout(() => chrome.tabs.reload(details.tabId, { bypassCache: true }), 1000);
+    });
+  });
+});
 
 // ============= ОБРАБОТЧИК СООБЩЕНИЙ =============
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
@@ -528,6 +590,11 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'clearBadge') {
+    clearBadge();
+    return true;
+  }
+
   if (request.action === 'testSpecificProxy') {
     chrome.storage.local.get(['proxies', 'proxyList', 'directList'], (data) => {
       const proxyToTest = findProxyById(data.proxies, request.proxyId);
@@ -556,57 +623,4 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     return true;
   }
 
-  if (request.action === 'testProxyHealth') {
-    chrome.storage.local.get(['proxies', 'proxyList', 'directList'], (data) => {
-      const proxyToTest = findProxyById(data.proxies, request.proxyId);
-      if (!proxyToTest) return sendResponse({ success: false, error: 'Proxy not found' });
-
-      const originalList = data.proxyList || [];
-      const originalDirectList = data.directList || [];
-      const proxyStr = `${proxyToTest.type} ${proxyToTest.host}:${proxyToTest.port}`;
-
-      const restore = (cb) => {
-        loadConfigFromStorage(() => { applyProxyConfig(); if (cb) cb(); });
-      };
-
-      chrome.proxy.settings.set(
-        { value: { mode: 'direct' }, scope: 'regular' },
-        () => {
-          setTimeout(() => {
-            fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
-              .then(r => r.json())
-              .then(local => {
-                const pac = `function FindProxyForURL(url, host) { if (host === "api.ipify.org") return "${escapePacString(proxyStr)}"; return "DIRECT"; }`;
-                chrome.proxy.settings.set(
-                  { value: { mode: 'pac_script', pacScript: { data: pac } }, scope: 'regular' },
-                  () => {
-                    setTimeout(() => {
-                      fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
-                        .then(r => r.json())
-                        .then(proxy => restore(() => sendResponse({ success: true, proxyIp: proxy.ip, localIp: local.ip })))
-                        .catch(err => restore(() => sendResponse({ success: false, error: err.message, localIp: local.ip })));
-                    }, 500);
-                  }
-                );
-              })
-              .catch(() => {
-                const pac = `function FindProxyForURL(url, host) { if (host === "api.ipify.org") return "${escapePacString(proxyStr)}"; return "DIRECT"; }`;
-                chrome.proxy.settings.set(
-                  { value: { mode: 'pac_script', pacScript: { data: pac } }, scope: 'regular' },
-                  () => {
-                    setTimeout(() => {
-                      fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
-                        .then(r => r.json())
-                        .then(proxy => restore(() => sendResponse({ success: true, proxyIp: proxy.ip, localIp: null })))
-                        .catch(err => restore(() => sendResponse({ success: false, error: err.message })));
-                    }, 500);
-                  }
-                );
-              });
-          }, 500);
-        }
-      );
-    });
-    return true;
-  }
 });

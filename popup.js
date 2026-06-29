@@ -35,11 +35,9 @@ let cachedData = {
   proxies: [],
   activeProxyId: null,
   autoAddRelated: false,
-  extensionEnabled: true
+  extensionEnabled: true,
+  autoProxyEnabled: false
 };
-
-// Кэш состояния здоровья прокси
-const proxyHealthCache = {};
 
 // Флаг для предотвращения множественных рендеров
 let isRendering = false;
@@ -175,7 +173,7 @@ function loadData() {
   
   isRendering = true;
   
-  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled'], (data) => {
+  chrome.storage.local.get(['proxyList', 'directList', 'proxies', 'activeProxyId', 'autoAddRelated', 'extensionEnabled', 'autoProxyEnabled'], (data) => {
     // Обновляем кэш
     cachedData.proxyList = data.proxyList || [];
     cachedData.directList = data.directList || [];
@@ -183,6 +181,7 @@ function loadData() {
     cachedData.activeProxyId = data.activeProxyId;
     cachedData.autoAddRelated = data.autoAddRelated || false;
     cachedData.extensionEnabled = data.extensionEnabled !== false;
+    cachedData.autoProxyEnabled = data.autoProxyEnabled === true;
     
     renderProxies(cachedData.proxies, cachedData.activeProxyId);
     
@@ -207,6 +206,16 @@ function loadData() {
     
     // Обновляем главный переключатель
     updateMainToggle(cachedData.extensionEnabled);
+
+    // Обновляем переключатель автопрокси
+    const autoProxyToggle = document.getElementById('autoProxyToggle');
+    if (autoProxyToggle) {
+      if (cachedData.autoProxyEnabled) {
+        autoProxyToggle.classList.add('active');
+      } else {
+        autoProxyToggle.classList.remove('active');
+      }
+    }
     
     isRendering = false;
     
@@ -315,7 +324,6 @@ function renderProxies(proxies, activeProxyId) {
     item.innerHTML = `
       <div class="proxy-header-row">
         <input type="radio" name="activeProxy" value="${proxyId}" ${isActive ? 'checked' : ''} class="proxy-radio-input" aria-label="Выбрать прокси ${proxy.name}">
-        <span class="proxy-status-dot ${proxyHealthCache[proxyId]?.status || 'untested'}" data-id="${proxyId}" title="${proxyHealthCache[proxyId]?.title || 'Статус неизвестен'}"></span>
         <input type="text" class="proxy-name-input" value="${proxy.name}" data-id="${proxyId}" placeholder="Название прокси">
         <button type="button" class="delete-btn-small" data-id="${proxyId}" title="Удалить">✕</button>
       </div>
@@ -756,13 +764,30 @@ function addToList(value, listKey) {
       return;
     }
     
+    // Если добавляем в список прокси, проверяем нет ли в directList (приоритет)
+    if (listKey === 'proxyList') {
+      chrome.storage.local.get(['directList'], (directData) => {
+        const directList = directData.directList || [];
+        if (directList.find(s => s.value.toLowerCase() === value.toLowerCase())) {
+          alert('❌ Этот сайт уже в списке напрямую\n\nПриоритет у списка прямых подключений — удалите его оттуда сначала.');
+          return;
+        }
+        // Продолжаем добавление
+        finalizeAdd(value, list, listKey);
+      });
+    } else {
+      finalizeAdd(value, list, listKey);
+    }
+  });
+}
+
+function finalizeAdd(value, list, listKey) {
     list.push({
       id: crypto.randomUUID(),
       value: value,
       enabled: true
     });
     chrome.storage.local.set({ [listKey]: list }, loadData);
-  });
 }
 
 // Добавление в proxy list
@@ -1134,33 +1159,24 @@ if (mainToggle) {
 // Инициализация
 loadData();
 
-// Авто-тест активного прокси
-function autoTestProxy() {
-  const activeProxy = findProxyById(cachedData.proxies, cachedData.activeProxyId);
-  if (!activeProxy || !cachedData.extensionEnabled) return;
-  
-  const proxyId = String(activeProxy.id);
-  const dot = document.querySelector(`.proxy-status-dot[data-id="${proxyId}"]`);
-  
-  chrome.runtime.sendMessage({ action: 'testProxyHealth', proxyId: activeProxy.id }, (response) => {
-    if (chrome.runtime.lastError) return;
-    
-    if (response && response.success) {
-      let title = `✓ Прокси: ${response.proxyIp}`;
-      if (response.localIp) title += ` | Локальный: ${response.localIp}`;
-      proxyHealthCache[proxyId] = { status: 'alive', title };
-    } else {
-      proxyHealthCache[proxyId] = { status: 'dead', title: `✗ ${response?.error || 'Недоступен'}` };
-    }
-    
-    if (dot) {
-      dot.className = `proxy-status-dot ${proxyHealthCache[proxyId].status}`;
-      dot.title = proxyHealthCache[proxyId].title;
-    }
+// Очищаем бейдж при открытии попапа
+chrome.runtime.sendMessage({ action: 'clearBadge' });
+
+// Авто-прокси переключатель
+const autoProxyToggle = document.getElementById('autoProxyToggle');
+if (autoProxyToggle) {
+  autoProxyToggle.addEventListener('click', () => {
+    const newState = !cachedData.autoProxyEnabled;
+    cachedData.autoProxyEnabled = newState;
+    chrome.storage.local.set({ autoProxyEnabled: newState }, () => {
+      if (newState) {
+        autoProxyToggle.classList.add('active');
+      } else {
+        autoProxyToggle.classList.remove('active');
+      }
+    });
   });
 }
-
-setTimeout(autoTestProxy, 500);
 
 // Устанавливаем обработчики событий для списков (один раз)
 setupSiteListHandlers(proxyListSites);

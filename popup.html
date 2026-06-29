@@ -49,6 +49,7 @@
     <div class="subtabs">
       <button class="subtab-btn active" data-subtab="proxylist">🔒 Через прокси</button>
       <button class="subtab-btn" data-subtab="directlist">✅ Напрямую</button>
+      <button class="subtab-btn" data-subtab="autoproxy">⚡ Авто-прокси</button>
     </div>
 
     <!-- Список для прокси -->
@@ -138,6 +139,32 @@
 
         <div class="sites-list" id="directListSites">
           <!-- Список будет здесь -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Авто-прокси -->
+    <div id="autoproxy" class="subtab-content">
+      <div class="sites-section">
+        <div class="sites-header">
+          <h3>⚡ Авто-прокси</h3>
+        </div>
+
+        <div id="autoProxyInfo" class="auto-proxy-info">
+          <div class="auto-proxy-desc">
+            <p>Авто-прокси автоматически добавляет сайт в список прокси, если он недоступен напрямую.</p>
+            <ul>
+              <li>Срабатывает при ошибках: DNS не найден, соединение сброшено, таймаут</li>
+              <li>Домен нормализуется (cdn3.example.com → *.example.com)</li>
+              <li>Страница перезагружается через прокси</li>
+              <li>На иконке отображается <span class="auto-badge-demo">A</span></li>
+            </ul>
+          </div>
+
+          <div class="auto-proxy-row">
+            <span class="auto-proxy-label-text">⚡ Авто-прокси</span>
+            <div class="toggle-switch active" id="autoProxyToggle"></div>
+          </div>
         </div>
       </div>
     </div>

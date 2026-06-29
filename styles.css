@@ -17,7 +17,7 @@ body {
 }
 
 h1 {
-  font-size: 20px;
+  font-size: 24px;
   margin-bottom: 16px;
   color: #1a73e8;
   text-align: center;
@@ -263,17 +263,6 @@ h3 {
   pointer-events: auto;
 }
 
-.proxy-status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transition: background 0.3s;
-}
-.proxy-status-dot.alive { background: #34a853; }
-.proxy-status-dot.dead { background: #d93025; }
-.proxy-status-dot.untested { background: #dadce0; }
-
 .proxy-name-input {
   flex: 1;
   padding: 8px 12px;
@@ -377,6 +366,58 @@ h3 {
   padding: 20px;
   color: #999;
   font-size: 13px;
+}
+
+.auto-proxy-info {
+  padding: 16px 0;
+}
+
+.auto-proxy-desc {
+  margin-bottom: 20px;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.auto-proxy-desc p {
+  margin-bottom: 12px;
+}
+
+.auto-proxy-desc ul {
+  padding-left: 20px;
+  margin-bottom: 0;
+}
+
+.auto-proxy-desc li {
+  margin-bottom: 8px;
+}
+
+.auto-badge-demo {
+  display: inline-block;
+  background: #1a73e8;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 2px;
+  font-family: monospace;
+}
+
+.auto-proxy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid #e8eaed;
+}
+
+.auto-proxy-label-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
 }
 
 .settings-row {
