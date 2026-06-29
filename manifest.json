@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Proxy Manager",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Управление маршрутизацией трафика через локальный proxy",
   "permissions": [
     "proxy",
@@ -10,7 +10,8 @@
     "webNavigation",
     "contextMenus",
     "tabs",
-    "notifications"
+    "notifications",
+    "privacy"
   ],
   "host_permissions": [
     "<all_urls>"

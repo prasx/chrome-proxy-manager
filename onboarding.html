@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proxy Manager — Первый запуск</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+body {
+  display: grid !important;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  width: auto !important;
+  flex-direction: unset !important;
+  overflow: auto;
+  background: #f8f8f8;
+
+}
+</style>
+</head>
+<body>
+
+<div class="onboarding">
+  <div class="steps-bar">
+    <div class="step-dot active" data-step="0"></div>
+    <div class="step-dot" data-step="1"></div>
+    <div class="step-dot" data-step="2"></div>
+    <div class="step-dot" data-step="3"></div>
+  </div>
+
+  <div class="slides-wrap" id="slidesWrap">
+
+    <!-- Step 1: Welcome -->
+    <div class="slide active" data-slide="0">
+      <div class="slide-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="slide-title">Добро пожаловать в Proxy Manager</div>
+      <div class="slide-desc">
+        Умный прокси-менеджер, который сам решает, когда включиться.
+        Никаких ручных переключений — просто работайте, а мы позаботимся о соединении.
+      </div>
+      <div class="slide-actions">
+        <div></div>
+        <button class="btn btn-primary next-btn">Начать</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Features -->
+    <div class="slide" data-slide="1">
+      <div class="slide-title">Что умеет Proxy Manager</div>
+      <div class="slide-desc">Всё нужное для комфортного и безопасного сёрфинга.</div>
+      <div class="feature-grid">
+        <div class="feature-row">
+          <div class="feature-row-icon">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <div class="feature-row-text">
+            <div class="feature-row-title">Автоматический режим</div>
+            <div class="feature-row-desc">Прокси включается только для недоступных сайтов. Остальное — напрямую.</div>
+          </div>
+        </div>
+        <div class="feature-row">
+          <div class="feature-row-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <div class="feature-row-text">
+            <div class="feature-row-title">Мульти-прокси</div>
+            <div class="feature-row-desc">Несколько прокси-серверов с цепочкой фоллбэка. Если один упал — переключимся на другой.</div>
+          </div>
+        </div>
+        <div class="feature-row">
+          <div class="feature-row-icon">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div class="feature-row-text">
+            <div class="feature-row-title">Статистика и логи</div>
+            <div class="feature-row-desc">Полный контроль: логи маршрутизации, топ доменов.</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-actions">
+        <button class="btn btn-ghost prev-btn">Назад</button>
+        <button class="btn btn-primary next-btn">Далее</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Choose Default Proxy -->
+    <div class="slide" data-slide="2">
+      <div class="slide-title">Настройте прокси</div>
+      <div class="slide-desc">Добавьте хотя бы один прокси-сервер для начала работы.</div>
+      <div id="proxySetupArea" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div class="field-label">Название</div>
+          <input type="text" class="input-s" id="onboardName" placeholder="Мой прокси" />
+        </div>
+        <div class="field-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div class="field-label">Адрес прокси</div>
+          <div style="display:flex;gap:8px;min-width:0;">
+            <input type="text" class="input-s" id="onboardHost" placeholder="127.0.0.1" style="flex:2;" />
+            <input type="number" class="input-s" id="onboardPort" placeholder="1080" min="1" max="65535" style="flex:1;" />
+          </div>
+        </div>
+        <div class="field-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div class="field-label">Тип</div>
+          <select class="select-s" id="onboardType" style="width:100%;">
+            <option value="SOCKS5">SOCKS5</option>
+            <option value="SOCKS">SOCKS4</option>
+            <option value="PROXY">HTTP</option>
+            <option value="HTTPS">HTTPS</option>
+          </select>
+        </div>
+        <div class="field-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div class="field-label">Авторизация (опционально)</div>
+          <div style="display:flex;gap:8px;min-width:0;">
+            <input type="text" class="input-s" id="onboardUser" placeholder="Логин" />
+            <input type="password" class="input-s" id="onboardPass" placeholder="Пароль" />
+          </div>
+        </div>
+      </div>
+      <div id="onboardHint" style="color:var(--danger,#e53935);font:400 13px/1.4 var(--font-body);display:none;text-align:center;">Заполните хост и порт прокси</div>
+      <div class="slide-actions">
+        <button class="btn btn-ghost prev-btn">Назад</button>
+        <button class="btn btn-primary next-btn" id="saveProxyBtn">Сохранить и далее</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div class="slide" data-slide="3">
+      <div class="slide-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="slide-title">Готово!</div>
+      <div class="slide-desc">
+        Proxy Manager настроен и готов к работе. Нажмите на иконку в панели расширений, чтобы открыть меню.
+      </div>
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-top:4px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--accent);display:grid;place-items:center;flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div style="font:600 14px/1.3 var(--font-body);">Подсказка</div>
+          <div style="font:400 13px/1.4 var(--font-body);color:var(--muted);">Используйте "Панель управления" для настройки правил маршрутизации и статистики.</div>
+        </div>
+      </div>
+      <div class="slide-actions">
+        <button class="btn btn-ghost prev-btn">Назад</button>
+        <button class="btn btn-primary" id="finishBtn">Начать работу</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="onboarding.js"></script>
+</body>
+</html>

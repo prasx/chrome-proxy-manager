@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proxy Manager — Настройки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="settings-app">
+
+  <nav class="settings-nav">
+    <div class="settings-nav-item active" data-tab="general">Общие</div>
+    <div class="settings-nav-item" data-tab="rules">Правила</div>
+    <div class="settings-nav-item" data-tab="security">Безопасность</div>
+    <div class="settings-nav-item" data-tab="about">О расширении</div>
+  </nav>
+
+  <div class="settings-body">
+
+    <div class="back-bar">
+      <a class="back-link" id="backLink">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Панель управления
+      </a>
+    </div>
+
+    <div class="settings-header">
+      <div class="settings-title">Настройки</div>
+      <div class="settings-subtitle">Управляйте поведением Proxy Manager под свои задачи</div>
+    </div>
+
+    <!-- General -->
+    <div class="settings-section" data-tab="general">
+      <div class="settings-section-title">Основные</div>
+      <div class="settings-section-desc">Поведение расширения при запуске и в фоне</div>
+      <div class="field-group">
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Расширение включено</div>
+            <div class="field-desc">Глобальный переключатель прокси</div>
+          </div>
+          <button class="toggle-switch" data-key="extensionEnabled"></button>
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Авто-прокси</div>
+            <div class="field-desc">Автоматически добавлять недоступные сайты в список прокси</div>
+          </div>
+          <button class="toggle-switch" data-key="autoProxyEnabled"></button>
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Таймаут загрузки</div>
+            <div class="field-desc">Если страница не загрузилась за время — домены добавляются в прокси</div>
+          </div>
+          <button class="toggle-switch" data-key="autoProxyTimeoutEnabled"></button>
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Задержка таймаута (сек)</div>
+            <div class="field-desc">Время ожидания перед добавлением в прокси (2-30 сек)</div>
+          </div>
+          <input type="number" class="input-s" id="timeoutInput" min="2" max="30" step="1" style="width:80px;text-align:center;" />
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Авто-добавление связанных доменов</div>
+            <div class="field-desc">При анализе страницы автоматически добавлять связанные домены</div>
+          </div>
+          <button class="toggle-switch" data-key="autoAddRelated"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules -->
+    <div class="settings-section" data-tab="rules" style="display:none;">
+      <div class="settings-section-title">Правила маршрутизации</div>
+      <div class="settings-section-desc">Укажите, какие сайты открывать через прокси, а какие — напрямую</div>
+
+      <div style="margin-bottom:16px;">
+        <div class="settings-section-title" style="font-size:var(--text-base);">Через прокси</div>
+        <div class="rule-search" style="margin:8px 0;">
+          <span class="rule-search__icon">&#128269;</span>
+          <input type="text" class="rule-search__input" id="settingsProxySearch" placeholder="Поиск..." />
+          <span class="rule-search__count" id="settingsProxyCount"></span>
+        </div>
+        <div class="rule-list" id="settingsProxyList"></div>
+        <div class="rule-add" style="margin-top:8px;">
+          <input type="text" placeholder="*.example.com" id="settingsProxyInput" />
+          <button class="primary" id="addSettingsProxyBtn">Добавить</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="settings-section-title" style="font-size:var(--text-base);">Напрямую</div>
+        <div class="rule-search" style="margin:8px 0;">
+          <span class="rule-search__icon">&#128269;</span>
+          <input type="text" class="rule-search__input" id="settingsDirectSearch" placeholder="Поиск..." />
+          <span class="rule-search__count" id="settingsDirectCount"></span>
+        </div>
+        <div class="rule-list" id="settingsDirectList"></div>
+        <div class="rule-add" style="margin-top:8px;">
+          <input type="text" placeholder="localhost, *.local" id="settingsDirectInput" />
+          <button class="primary" id="addSettingsDirectBtn">Добавить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security -->
+    <div class="settings-section" data-tab="security" style="display:none;">
+      <div class="settings-section-title">Безопасность</div>
+      <div class="settings-section-desc">Защита данных и предотвращение утечек</div>
+      <div class="field-group">
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Защита WebRTC</div>
+            <div class="field-desc">Предотвращает утечку реального IP через WebRTC</div>
+          </div>
+          <button class="toggle-switch" data-key="webrtcProtectionEnabled"></button>
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">DNS через прокси</div>
+            <div class="field-desc">Все DNS-запросы направляются через прокси-сервер (скоро)</div>
+          </div>
+          <button class="toggle-switch" disabled style="opacity:0.4;"></button>
+        </div>
+        <div class="field-row">
+          <div class="field-info">
+            <div class="field-label">Kill switch</div>
+            <div class="field-desc">Блокировать весь трафик при обрыве соединения с прокси</div>
+          </div>
+          <button class="toggle-switch" data-key="killSwitchEnabled"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="settings-section" data-tab="about" style="display:none;">
+      <div class="settings-section-title">О расширении</div>
+      <div class="settings-section-desc">Версия, ссылки и управление конфигурацией</div>
+      <div class="field-group">
+        <div class="field-row">
+          <div class="field-info"><div class="field-label">Версия</div></div>
+          <span id="aboutVersion" style="font:500 var(--text-sm)/1 var(--font-mono);color:var(--muted);"></span>
+        </div>
+        <div class="field-row">
+          <div class="field-info"><div class="field-label">Репозиторий</div></div>
+          <a href="https://github.com/prasx/chrome-proxy-manager" target="_blank" style="font:400 var(--text-sm)/1 var(--font-mono);color:var(--accent);text-decoration:none;">prasx/chrome-proxy-manager</a>
+        </div>
+        <div class="field-row">
+          <div class="field-info"><div class="field-label">Лицензия</div></div>
+          <span style="font:400 var(--text-sm)/1 var(--font-body);color:var(--muted);">MIT</span>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-secondary" id="exportConfigBtn">Экспорт настроек</button>
+        <button class="btn btn-secondary" id="importConfigBtn">Импорт настроек</button>
+        <button class="btn btn-danger" id="resetStatsBtn">Сбросить статистику</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<input type="file" id="importConfigFile" style="display:none" accept=".json" />
+<script src="shared.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

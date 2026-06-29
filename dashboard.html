@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proxy Manager — Панель управления</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <span class="sidebar-name">Proxy Manager</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" data-page="overview">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Обзор
+      </a>
+      <a class="nav-item" data-page="servers">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Серверы
+      </a>
+      <a class="nav-item" data-page="activity">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Логи
+      </a>
+      <a class="nav-item" data-page="rules">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Правила
+        <span class="nav-badge" id="navRulesBadge">0</span>
+      </a>
+      <a class="nav-item" data-page="settings">
+        <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Настройки
+      </a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ===== Overview ===== -->
+    <div id="page-overview" class="page-content">
+      <div class="page-title">Панель управления</div>
+      <div class="page-subtitle">Состояние прокси-серверов, статистика и последние события</div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-value" id="dashServerCount">0</div>
+          <div class="stat-card-label">Серверов</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="dashRulesCount">0</div>
+          <div class="stat-card-label">Правил</div>
+        </div>
+        
+      </div>
+
+      <div class="connection-bar">
+        <div class="connection-left">
+          <button class="connection-switch on" id="dashToggle" aria-label="Toggle proxy"></button>
+          <div class="connection-info">
+            <div class="connection-status-text" id="dashStatus">Подключено</div>
+            <div class="connection-meta" id="dashMeta">—</div>
+          </div>
+        </div>
+        <button class="connection-change-btn" id="dashChangeBtn">Сменить сервер</button>
+      </div>
+
+      <div class="section-header">
+        <h2 class="section-title">Серверы</h2>
+        <button class="section-action" id="overviewAddServer">Добавить сервер</button>
+      </div>
+
+      <div id="overviewServers" style="margin-bottom:30px;"></div>
+
+      <div class="stats-grid" id="overviewStats">
+        <div class="stat-card">
+          <div class="stat-card-value" id="ovStatTotal">0</div>
+          <div class="stat-card-label">Всего запросов</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="ovStatProxy">0</div>
+          <div class="stat-card-label">Через прокси</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="ovStatDirect">0</div>
+          <div class="stat-card-label">Напрямую</div>
+        </div>
+      </div>
+
+      <div class="section-header" style="margin-top:24px;">
+        <h2 class="section-title">Топ доменов</h2>
+      </div>
+      <div class="domain-list" id="ovTopDomains"></div>
+    </div>
+
+    <!-- ===== Servers ===== -->
+    <div id="page-servers" class="page-content" style="display:none;">
+      <div class="page-title">Серверы</div>
+      <div class="page-subtitle">Управление прокси-серверами</div>
+
+      <div class="section-header">
+        <h2 class="section-title">Список серверов</h2>
+        <button class="section-action" id="serversAddBtn">+ Добавить сервер</button>
+      </div>
+
+      <table class="server-table">
+        <thead>
+          <tr>
+            <th>Сервер</th>
+            <th>Хост</th>
+            <th>Порт</th>
+            <th>Тип</th>
+            <th>Статус</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="serversTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ===== Activity ===== -->
+    <div id="page-activity" class="page-content" style="display:none;">
+      <div class="page-title">Логи</div>
+      <div class="page-subtitle">Логи маршрутизации и события</div>
+
+      <div class="section-header">
+        <h2 class="section-title">События</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="select-s" id="activityFilter">
+            <option value="all">Все</option>
+            <option value="PROXY">PROXY</option>
+            <option value="DIRECT">DIRECT</option>
+            <option value="CONFIG">Конфиг</option>
+            <option value="ERROR">Ошибки</option>
+          </select>
+          <button class="btn-icon is-danger" id="clearLogsBtn" title="Очистить логи">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button class="btn-icon" id="exportLogsBtn" title="Экспорт логов">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="activity-list" id="activityFull" style="max-height:600px;"></div>
+    </div>
+
+    <!-- ===== Rules ===== -->
+    <div id="page-rules" class="page-content" style="display:none;">
+      <div class="page-title">Правила маршрутизации</div>
+      <div class="page-subtitle">Укажите, какие сайты открывать через прокси, а какие — напрямую</div>
+
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <div style="flex:1;display:flex;gap:6px;">
+          <input type="text" class="input-s" placeholder="google.com, *.ru" id="proxyRuleInput" />
+          <button class="btn btn-primary" id="addProxyRuleBtn" style="white-space:nowrap;">+ Прокси</button>
+        </div>
+        <div style="flex:1;display:flex;gap:6px;">
+          <input type="text" class="input-s" placeholder="localhost, *.local" id="directRuleInput" />
+          <button class="btn btn-primary" id="addDirectRuleBtn" style="white-space:nowrap;">+ Напрямую</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex:1;min-height:0;">
+        <div style="flex:1;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+            <span style="font:600 var(--text-sm)/1 var(--font-display);">Через прокси</span>
+            <span class="version-tag" id="proxyRuleCount" style="margin-left:auto;"></span>
+          </div>
+          <div class="rule-search" style="margin:8px 12px 0;">
+            <span class="rule-search__icon">&#128269;</span>
+            <input type="text" class="rule-search__input" id="proxyRuleSearch" placeholder="Поиск..." />
+          </div>
+          <div class="rule-list" id="proxyRuleList" style="flex:1;overflow-y:auto;max-height:calc(100vh - 320px);padding:4px 12px;"></div>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+            <span style="font:600 var(--text-sm)/1 var(--font-display);">Напрямую</span>
+            <span class="version-tag" id="directRuleCount" style="margin-left:auto;"></span>
+          </div>
+          <div class="rule-search" style="margin:8px 12px 0;">
+            <span class="rule-search__icon">&#128269;</span>
+            <input type="text" class="rule-search__input" id="directRuleSearch" placeholder="Поиск..." />
+          </div>
+          <div class="rule-list" id="directRuleList" style="flex:1;overflow-y:auto;max-height:calc(100vh - 320px);padding:4px 12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Settings ===== -->
+    <div id="page-settings" class="page-content" style="display:none;">
+      <div class="page-title">Настройки</div>
+      <div class="page-subtitle">Управляйте поведением Proxy Manager</div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Основные</div>
+        <div class="settings-section-desc">Поведение расширения при запуске и в фоне</div>
+        <div class="field-group">
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Расширение включено</div>
+              <div class="field-desc">Глобальный переключатель прокси</div>
+            </div>
+            <button class="toggle-switch" data-key="extensionEnabled"></button>
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Авто-прокси</div>
+              <div class="field-desc">Автоматически добавлять недоступные сайты в список прокси</div>
+            </div>
+            <button class="toggle-switch" data-key="autoProxyEnabled"></button>
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Таймаут загрузки</div>
+              <div class="field-desc">Если страница не загрузилась за время — домены добавляются в прокси</div>
+            </div>
+            <button class="toggle-switch" data-key="autoProxyTimeoutEnabled"></button>
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Задержка таймаута (сек)</div>
+              <div class="field-desc">Время ожидания перед добавлением в прокси (2-30 сек)</div>
+            </div>
+            <input type="number" class="input-s" id="dashTimeoutInput" min="2" max="30" step="1" style="width:80px;text-align:center;" />
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Авто-добавление связанных доменов</div>
+              <div class="field-desc">При анализе страницы автоматически добавлять связанные домены</div>
+            </div>
+            <button class="toggle-switch" data-key="autoAddRelated"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Безопасность</div>
+        <div class="settings-section-desc">Защита данных (скоро)</div>
+        <div class="field-group">
+          <div class="field-row">
+            <div class="field-info">
+            <div class="field-label">Защита WebRTC</div>
+            <div class="field-desc">Предотвращает утечку реального IP через WebRTC</div>
+          </div>
+          <button class="toggle-switch" data-key="webrtcProtectionEnabled"></button>
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Kill switch</div>
+              <div class="field-desc">Блокировать трафик при обрыве соединения с прокси</div>
+            </div>
+            <button class="toggle-switch" data-key="killSwitchEnabled"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Данные</div>
+        <div class="settings-section-desc">Экспорт, импорт и сброс</div>
+        <div class="field-group">
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Версия</div>
+            </div>
+            <span id="dashAboutVersion" style="font:500 var(--text-sm)/1 var(--font-mono);color:var(--muted);"></span>
+          </div>
+          <div class="field-row">
+            <div class="field-info">
+              <div class="field-label">Репозиторий</div>
+            </div>
+            <a href="https://github.com/prasx/chrome-proxy-manager" target="_blank" style="font:400 var(--text-sm)/1 var(--font-mono);color:var(--accent);text-decoration:none;">prasx/chrome-proxy-manager</a>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn btn-secondary" id="dashExportBtn">Экспорт настроек</button>
+          <button class="btn btn-secondary" id="dashImportBtn">Импорт настроек</button>
+        </div>
+        
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="shared.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

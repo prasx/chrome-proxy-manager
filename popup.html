@@ -1,264 +1,95 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>🛡️ Proxy Manager</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=380" />
+<title>Proxy Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <div class="container">
-    <header class="topbar">
-      <h1>🛡️ Proxy Manager</h1>
+<body class="popup-body">
 
-    </header>
-
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="settings">⚙️ Настройки</button>
-      <button class="tab-btn" data-tab="stats">📊 Статистика</button>
-      <button class="tab-btn" data-tab="logs">📋 Логи</button>
-      <div class="tabs-actions">
-        <button id="exportConfig" class="btn-icon" title="Экспорт">💾</button>
-        <button id="importConfig" class="btn-icon" title="Импорт">📂</button>
-      </div>
+<div class="header">
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
     </div>
+    <span class="logo-name">Proxy Manager</span>
+  </div>
+  <div class="header-actions">
+    <button class="header-btn" id="dashboardBtn" title="Панель управления">
+      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    </button>
+  </div>
+</div>
 
-    <!-- Настройки -->
-      <div id="settings" class="tab-content active">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">
-              Прокси серверы
-              <span class="status-badge" id="extensionStatusBadge">Включено</span>
-            </h3>
-            <div class="card-actions">
-              <button id="testProxy" class="btn-icon" title="Проверить IP">🔍</button>
-              <button id="addProxy" class="btn-icon" title="Добавить прокси">➕</button>
-              <div class="toggle active" id="mainToggle" title="Включить/выключить расширение"></div>
-            </div>
-          </div>
-          <div id="proxyTestResult" class="test-result" style="display: none;">
-            <span class="test-result__text"></span>
-            <button class="test-result__close">✕</button>
-          </div>
-          <div id="proxiesList" class="proxy-list"></div>
-        </div>
+<div class="status-row">
+  <span class="status-dot" id="statusDot"></span>
+  <span class="status-text" id="statusText">Подключено</span>
+  <span id="statusIp" style="font:400 11px/1 var(--font-mono);color:var(--muted);margin-left:auto;"></span>
+</div>
 
-        <div class="card">
-          <div class="subtabs">
-            <button class="subtab-btn active" data-subtab="proxylist">🔒 Через прокси</button>
-            <button class="subtab-btn" data-subtab="directlist">✅ Напрямую</button>
-            <button class="subtab-btn" data-subtab="autoproxy">⚡ Авто-прокси</button>
-          </div>
+<div class="toggle-area">
+  <button class="toggle-btn active" id="toggleBtn" aria-label="Переключить прокси">
+    <div class="toggle-ring"></div>
+    <div class="toggle-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <span class="toggle-label">Вкл</span>
+  </button>
+</div>
 
-          <div id="proxylist" class="subtab-content active">
-            <div class="card-body">
-              <div class="section-header">
-                <span class="section-title">Сайты через прокси</span>
-                <button id="analyzeCurrentPage" class="btn-outline btn-s">🔍 Анализ</button>
-              </div>
-
-              <div id="relatedDomainsSection" class="related-box" style="display: none;">
-                <div class="related-box__header">
-                  <span>🔗 Связанные домены</span>
-                  <div class="related-box__controls">
-                    <label class="check-label">
-                      <input type="checkbox" id="autoAddRelated">
-                      <span>Авто</span>
-                    </label>
-                    <button id="hideRelatedDomains" class="btn-close" title="Скрыть">✕</button>
-                  </div>
-                </div>
-                <div id="relatedDomainsList" class="related-box__list"></div>
-                <div id="relatedDomainsActions" class="related-box__actions" style="display: none;">
-                  <button id="addAllToProxy" class="btn-outline btn-s color-proxy">➕ Все в прокси</button>
-                  <button id="addAllToDirect" class="btn-outline btn-s color-direct">➕ Все напрямую</button>
-                </div>
-              </div>
-
-              <div class="info-block">💡 Эти сайты будут открываться через прокси</div>
-
-              <div class="add-row">
-                <select id="proxyListType" class="select-s">
-                  <option value="domain">Домен</option>
-                  <option value="ip">IP</option>
-                  <option value="url">URL</option>
-                </select>
-                <input type="text" id="proxyListValue" class="input-s" placeholder="google.com, *.ru, 2ip.ru">
-                <button id="addToProxyList" class="btn-primary btn-s">Добавить</button>
-              </div>
-
-              <div class="search">
-                <span class="search__icon">🔍</span>
-                <input type="text" id="proxyListSearch" placeholder="Поиск по списку..." class="search__input">
-                <span class="search__count" id="proxyListCount"></span>
-              </div>
-
-              <div class="site-list" id="proxyListSites"></div>
-            </div>
-          </div>
-
-          <div id="directlist" class="subtab-content">
-            <div class="card-body">
-              <div class="section-header">
-                <span class="section-title">Сайты напрямую</span>
-              </div>
-
-              <div class="info-block">💡 Эти сайты всегда будут открываться напрямую (приоритет выше)</div>
-
-              <div class="add-row">
-                <select id="directListType" class="select-s">
-                  <option value="domain">Домен</option>
-                  <option value="ip">IP</option>
-                  <option value="url">URL</option>
-                </select>
-                <input type="text" id="directListValue" class="input-s" placeholder="localhost, 127.0.0.1, *.local">
-                <button id="addToDirectList" class="btn-primary btn-s">Добавить</button>
-              </div>
-
-              <div class="search">
-                <span class="search__icon">🔍</span>
-                <input type="text" id="directListSearch" placeholder="Поиск по списку..." class="search__input">
-                <span class="search__count" id="directListCount"></span>
-              </div>
-
-              <div class="site-list" id="directListSites"></div>
-            </div>
-          </div>
-
-          <div id="autoproxy" class="subtab-content">
-            <div class="card-body">
-              <div class="section-header">
-                <span class="section-title">⚡ Авто-прокси</span>
-                <div class="toggle active" id="autoProxyToggle"></div>
-              </div>
-
-              <div class="info-block">
-                <p>Авто-прокси автоматически добавляет сайт в список прокси, если он недоступен напрямую:</p>
-                <ul>
-                  <li>Срабатывает при ошибках: DNS не найден, соединение сброшено, таймаут</li>
-                  <li>Домен нормализуется: <code>cdn3.example.com</code> → <code>*.example.com</code></li>
-                  <li>Страница перезагружается через прокси</li>
-                  <li>На иконке отображается <span class="badge-a">A</span></li>
-                </ul>
-              </div>
-
-              <div class="section-header" style="margin-top:14px">
-                <span class="section-title">⏱ Таймаут загрузки</span>
-                <div class="toggle" id="autoProxyTimeoutToggle"></div>
-              </div>
-
-              <div class="info-block">
-                <p>Если страница или её ресурсы не загрузились за указанное время — домены с ошибками будут добавлены в список прокси:</p>
-              </div>
-
-              <div class="add-row">
-                <label class="add-row__label">Задержка (сек):</label>
-                <input type="number" id="autoProxyTimeout" class="input-s" value="5" min="2" max="30" step="1">
-              </div>
-            </div>
-          </div>
-        </div>
+<div class="info-section">
+  <div class="info-card" id="proxyInfoCard">
+    <div class="info-left">
+      <div class="info-location" id="proxyLocation">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span id="proxyName">—</span>
       </div>
-
-      <!-- Статистика -->
-      <div id="stats" class="tab-content">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">📊 Статистика использования</h3>
-          </div>
-          <div class="card-body">
-            <div class="stat-grid">
-              <div class="stat-block stat-block--proxy">
-                <div class="stat-block__icon">🔒</div>
-                <div>
-                  <div class="stat-block__value" id="proxyCount">0</div>
-                  <div class="stat-block__label">Через прокси</div>
-                </div>
-              </div>
-              <div class="stat-block stat-block--direct">
-                <div class="stat-block__icon">✅</div>
-                <div>
-                  <div class="stat-block__value" id="directCount">0</div>
-                  <div class="stat-block__label">Напрямую</div>
-                </div>
-              </div>
-              <div class="stat-block stat-block--total">
-                <div class="stat-block__icon">📈</div>
-                <div>
-                  <div class="stat-block__value" id="totalCount">0</div>
-                  <div class="stat-block__label">Всего</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="chart-wrap">
-              <h4 class="block-title">Активность за последний час</h4>
-              <canvas id="activityChart" width="500" height="180"></canvas>
-            </div>
-
-            <div class="top-wrap">
-              <h4 class="block-title">Топ-10 доменов</h4>
-              <div id="topDomainsList" class="top-list"></div>
-            </div>
-
-            <button id="resetStats" class="btn-danger">🗑️ Сбросить</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Логи -->
-      <div id="logs" class="tab-content">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">📋 Логи маршрутизации</h3>
-            <div class="card-actions">
-              <select id="logFilter" class="select-s">
-                <option value="all">Все</option>
-                <option value="PROXY">PROXY</option>
-                <option value="DIRECT">DIRECT</option>
-                <option value="CONFIG">Конфиг</option>
-                <option value="ERROR">Ошибки</option>
-              </select>
-              <button id="exportLogs" class="btn-icon" title="Скачать логи">💾</button>
-              <button id="clearLogs" class="btn-icon is-danger" title="Очистить логи">🗑️</button>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-wrap">
-              <table class="log-table">
-                <thead>
-                  <tr>
-                    <th>Время</th>
-                    <th>Тип</th>
-                    <th>Домен</th>
-                    <th>Правило</th>
-                    <th>Маршрут</th>
-                  </tr>
-                </thead>
-                <tbody id="logsTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    <div class="card card--footer">
-      <div class="footer">
-        <span class="version-tag" id="footerVersion">—</span>
-        <div class="footer__links">
-          <a href="https://github.com/prasx/chrome-proxy-manager" target="_blank" class="footer__link" title="GitHub">📦 GitHub</a>
-          <a href="https://github.com/prasx/chrome-proxy-manager/releases" target="_blank" class="footer__link" title="Обновления">🔔 Обновления</a>
-          <a href="https://github.com/prasx/chrome-proxy-manager/issues" target="_blank" class="footer__link" title="Баг-репорт">🐛 Баг-репорт</a>
-        </div>
-      </div>
+      <div class="info-ip" id="proxyAddress">—</div>
+    </div>
+    <div class="info-right">
+      <span class="latency-dot" id="latencyDot"></span>
+      <span id="latencyText">—</span>
     </div>
   </div>
+</div>
 
-  <input type="file" id="importConfigFile" style="display:none" accept=".json">
-  <script src="popup.js"></script>
+<div class="mode-section">
+  <div class="mode-label">Режим работы</div>
+  <div class="mode-chips">
+    <button class="mode-chip active" data-mode="auto">Авто</button>
+    <button class="mode-chip" data-mode="manual">Ручной</button>
+  </div>
+  <div id="modeHint" style="font:400 11px/1.4 var(--font-body);color:var(--muted);margin-top:6px;padding:0 2px;">Недоступные сайты автоматически добавляются в прокси</div>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-item">
+    <div class="stat-value" id="statSessions">0</div>
+    <div class="stat-label">Сессий</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" id="statProxy">0</div>
+    <div class="stat-label">Через прокси</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" id="statDirect">0</div>
+    <div class="stat-label">Напрямую</div>
+  </div>
+</div>
+
+<div class="proxy-section" style="margin-top:12px;">
+  <div class="proxy-section-header">
+    <span class="proxy-section-title">Анализ страницы</span>
+  </div>
+  <button class="btn btn-secondary" id="analyzeBtn" style="width:100%;font-size:12px;">Найти связанные домены</button>
+  <div id="relatedDomainsBox" style="display:none;margin-top:8px;"></div>
+</div>
+
+<script src="shared.js"></script>
+<script src="popup.js"></script>
 </body>
 </html>
