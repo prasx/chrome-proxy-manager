@@ -264,7 +264,7 @@ function setupServerHandlers() {
           setTimeout(() => {
             fetchWithFallback(IP_SERVICES, 0)
               .then(ip => {
-                chrome.runtime.sendMessage({ action: 'restoreProxySettings' });
+                chrome.runtime.sendMessage({ action: 'restoreProxySettings' }).catch(() => {});
                 if (row) {
                   btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
                   row.querySelector('.server-actions').insertAdjacentHTML('afterend',
@@ -272,7 +272,7 @@ function setupServerHandlers() {
                 }
               })
               .catch(() => {
-                chrome.runtime.sendMessage({ action: 'restoreProxySettings' });
+                chrome.runtime.sendMessage({ action: 'restoreProxySettings' }).catch(() => {});
                 if (row) {
                   btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
                   row.querySelector('.server-actions').insertAdjacentHTML('afterend',
@@ -445,7 +445,7 @@ function saveSettingsData() {
     webrtcProtectionEnabled: settingsData.webrtcProtectionEnabled,
     killSwitchEnabled: settingsData.killSwitchEnabled
   });
-  chrome.runtime.sendMessage({ action: 'setWebrtcPolicy', enabled: settingsData.webrtcProtectionEnabled });
+  chrome.runtime.sendMessage({ action: 'setWebrtcPolicy', enabled: settingsData.webrtcProtectionEnabled }).catch(() => {});
 }
 
 function initSettingsPage() {

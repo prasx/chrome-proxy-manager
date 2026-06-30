@@ -931,22 +931,30 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   }
 
   if (request.action === 'setWebrtcPolicy') {
-    const policy = request.enabled ? 'proxy_only' : 'default_public_interface_only';
-    chrome.privacy.network.webRTCIPHandlingPolicy.set({ value: policy }, () => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        sendResponse({ success: true });
-      }
-    });
+    try {
+      const policy = request.enabled ? 'proxy_only' : 'default_public_interface_only';
+      chrome.privacy.network.webRTCIPHandlingPolicy.set({ value: policy }, () => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ success: true });
+        }
+      });
+    } catch (e) {
+      sendResponse({ success: false, error: e.message });
+    }
     return true;
   }
 
   if (request.action === 'getWebrtcPolicy') {
-    chrome.privacy.network.webRTCIPHandlingPolicy.get({}, (result) => {
-      const enabled = result.value === 'proxy_only';
-      sendResponse({ enabled });
-    });
+    try {
+      chrome.privacy.network.webRTCIPHandlingPolicy.get({}, (result) => {
+        const enabled = result.value === 'proxy_only';
+        sendResponse({ enabled });
+      });
+    } catch (e) {
+      sendResponse({ enabled: false });
+    }
     return true;
   }
 
