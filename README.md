@@ -3,8 +3,7 @@
 Chrome-расширение для выборочной маршрутизации трафика через локальный прокси (SOCKS4/SOCKS5, HTTP/HTTPS) с помощью PAC-скрипта.
 
 <p align="center">
-  <img width="400" alt="screenshot" src="https://github.com/user-attachments/assets/9012ab79-3f09-4078-bd90-6ac57c6a5285" />
-  <img width="400" alt="screenshot" src="https://github.com/user-attachments/assets/562e7294-4959-45ba-907e-6a1dbfbeed2d" />
+<img width="1448" height="835" alt="Снимок экрана" src="https://github.com/user-attachments/assets/2e466b3c-1fe6-4116-a685-132da4151cbd" />
 </p>
 
 ## Возможности
