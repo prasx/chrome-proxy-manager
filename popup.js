@@ -199,7 +199,6 @@ const loadData = debounce(() => {
     clearBadge();
     updateMainToggle(cachedData.extensionEnabled);
     updateModeChips();
-    updateModeChips();
     updateProxyInfo();
     loadStats();
     measureLatency();

@@ -218,8 +218,8 @@ function setupServerHandlers() {
     const id = parseProxyId(target.dataset.id);
 
     const val = field === 'port' ? parseInt(target.value, 10) : target.value;
-    if (field === 'host' && val && val.trim() && !isValidProxyHost(val)) { loadData(); return; }
-    if (field === 'port' && !isValidPort(val)) { loadData(); return; }
+    if (field === 'host' && val && val.trim() && !isValidProxyHost(val)) { return; }
+    if (field === 'port' && val && !isValidPort(val)) { return; }
 
     chrome.storage.local.get(['proxies'], (d) => {
       const proxies = d.proxies.map(p => sameProxyId(p.id, id) ? { ...p, [field]: val } : p);
@@ -246,10 +246,10 @@ function setupServerHandlers() {
       chrome.storage.local.set({ activeProxyId: id }, () => loadData());
     } else if (action === 'delete') {
       chrome.storage.local.get(['proxies', 'activeProxyId'], (d) => {
-        if (d.proxies.length <= 1) { alert('Нельзя удалить последний прокси.'); return; }
         const proxy = findProxyById(d.proxies, id);
         if (!proxy || !confirm(`Удалить прокси "${proxy.name}"?`)) return;
         const proxies = d.proxies.filter(p => !sameProxyId(p.id, id));
+        if (proxies.length === 0) { alert('Нельзя удалить последний прокси.'); return; }
         const updates = { proxies };
         if (sameProxyId(d.activeProxyId, id)) updates.activeProxyId = proxies[0].id;
         chrome.storage.local.set(updates, () => loadData());
@@ -267,7 +267,8 @@ function setupServerHandlers() {
                 chrome.runtime.sendMessage({ action: 'restoreProxySettings' }).catch(() => {});
                 if (row) {
                   btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
-                  row.querySelector('.server-actions').insertAdjacentHTML('afterend',
+                  const actions = row.querySelector('.server-actions');
+                  if (actions) actions.insertAdjacentHTML('afterend',
                     `<div class="server-test-ip" style="font:500 11px/1 var(--font-mono);color:var(--success);padding:4px 0 0 4px;">IP: ${ip}</div>`);
                 }
               })
@@ -275,14 +276,16 @@ function setupServerHandlers() {
                 chrome.runtime.sendMessage({ action: 'restoreProxySettings' }).catch(() => {});
                 if (row) {
                   btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
-                  row.querySelector('.server-actions').insertAdjacentHTML('afterend',
+                  const actions = row.querySelector('.server-actions');
+                  if (actions) actions.insertAdjacentHTML('afterend',
                     `<div class="server-test-ip" style="font:500 11px/1 var(--font-mono);color:var(--danger);padding:4px 0 0 4px;">Ошибка: прокси недоступен</div>`);
                 }
               });
           }, 1000);
         } else {
           if (row) {
-            row.querySelector('.server-actions').insertAdjacentHTML('afterend',
+            const actions = row.querySelector('.server-actions');
+            if (actions) actions.insertAdjacentHTML('afterend',
               `<div class="server-test-ip" style="font:500 11px/1 var(--font-mono);color:var(--danger);padding:4px 0 0 4px;">Ошибка: ${response?.error || 'таймаут'}</div>`);
           }
           btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';

@@ -54,6 +54,6 @@ document.querySelectorAll('.prev-btn').forEach(btn => {
 
 document.getElementById('finishBtn').addEventListener('click', () => {
   chrome.storage.local.set({ onboardingComplete: true }, () => {
-    window.location.href = 'dashboard.html';
+    window.location.href = chrome.runtime.getURL('dashboard.html');
   });
 });
