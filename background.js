@@ -183,6 +183,8 @@ function generatePAC() {
 
   let code = 'function FindProxyForURL(url, host) {\n';
 
+  code += `  if (host === "api.ipify.org" || host.endsWith(".api.ipify.org")) return "${escapePacString(proxyChain)}";\n`;
+
   enabledDirect.forEach(site => {
     const pat = site.value.toLowerCase().trim().replace(/^\./, '');
     code += generatePACondition(pat, 'DIRECT');
@@ -192,8 +194,6 @@ function generatePAC() {
     const pat = site.value.toLowerCase().trim().replace(/^\./, '');
     code += generatePACondition(pat, proxyChain);
   });
-
-  code += `  if (host === "api.ipify.org" || host.endsWith(".api.ipify.org")) return "${escapePacString(proxyChain)}";\n`;
 
   code += killSwitch
     ? '  return "PROXY 0.0.0.0:0";\n}'
@@ -970,7 +970,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     }
 
     onConfigReady(() => {
-      fetch('https://api.ipify.org?format=json&_=' + Date.now(), { signal: AbortSignal.timeout(10000), headers: { 'Cache-Control': 'no-cache' } })
+      fetch('https://api.ipify.org?format=json&_=' + Date.now(), { signal: AbortSignal.timeout(8000), headers: { 'Cache-Control': 'no-cache' } })
         .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
         .then(d => { const ip = d && d.ip; if (!ip) throw new Error('No IP'); return ip; })
         .then(ip => sendResponse({ success: true, ip }))

@@ -145,7 +145,7 @@ const IP_SERVICES = [
 
 function fetchWithFallback(services, index = 0) {
   if (index >= services.length) return Promise.reject(new Error('All IP services failed'));
-  return fetch(services[index], { signal: AbortSignal.timeout(8000) })
+  return fetch(services[index], { signal: AbortSignal.timeout(6000) })
     .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
     .then(data => data.ip || data.origin || (data.error ? Promise.reject(new Error(data.error)) : null))
     .then(ip => ip || Promise.reject(new Error('No IP in response')))
@@ -170,7 +170,7 @@ function autoCheckIp() {
       const ip = response.ip;
       statusIp.textContent = ip;
       statusIp.title = 'Внешний IP через ' + activeProxy.name;
-      fetch('https://ipwho.is/' + ip, { signal: AbortSignal.timeout(5000) })
+      fetch('https://ipwho.is/' + ip, { signal: AbortSignal.timeout(4000) })
         .then(r => r.json())
         .then(geo => {
           if (geo.success !== false && geo.country_code) {

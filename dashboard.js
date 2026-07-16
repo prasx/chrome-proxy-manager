@@ -8,7 +8,7 @@ const IP_SERVICES = [
 
 function fetchWithFallback(services, index = 0) {
   if (index >= services.length) return Promise.reject(new Error('All IP services failed'));
-  return fetch(services[index], { signal: AbortSignal.timeout(8000) })
+  return fetch(services[index], { signal: AbortSignal.timeout(6000) })
     .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
     .then(data => data.ip || data.origin || (data.error ? Promise.reject(new Error(data.error)) : null))
     .then(ip => ip || Promise.reject(new Error('No IP in response')))
@@ -263,6 +263,7 @@ function setupServerHandlers() {
         if (response?.ready) {
           setTimeout(() => {
             fetchWithFallback(IP_SERVICES, 0)
+
               .then(ip => {
                 chrome.runtime.sendMessage({ action: 'restoreProxySettings' }).catch(() => {});
                 if (row) {
@@ -281,7 +282,7 @@ function setupServerHandlers() {
                     `<div class="server-test-ip" style="font:500 11px/1 var(--font-mono);color:var(--danger);padding:4px 0 0 4px;">Ошибка: прокси недоступен</div>`);
                 }
               });
-          }, 1000);
+          }, 300);
         } else {
           if (row) {
             const actions = row.querySelector('.server-actions');
@@ -290,7 +291,7 @@ function setupServerHandlers() {
           }
           btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
         }
-        setTimeout(() => { row?.querySelector('.server-test-ip')?.remove(); }, 8000);
+        setTimeout(() => { row?.querySelector('.server-test-ip')?.remove(); }, 5000);
       });
     }
   });
