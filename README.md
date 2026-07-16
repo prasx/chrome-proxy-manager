@@ -76,7 +76,7 @@ SOCKS5 127.0.0.1:1080; SOCKS5 192.168.1.2:1080; DIRECT
 1. Добавьте прокси (хост, порт, тип) через онбординг или панель управления
 2. Добавьте домены в «Через прокси» или «Напрямую»
 3. Переключайте режимы в попапе: ВЫКЛ / Ручной / Авто
-4. Нажмите **🔍** в панели серверов — тест покажет IP через выбранный прокси
+4. Нажмите **тест** в панели серверов — тест покажет IP через выбранный прокси
 
 **Стек:** Manifest V3, Service Worker, PAC, Chrome Storage API, Chrome Privacy API.
 
@@ -88,9 +88,9 @@ SOCKS5 127.0.0.1:1080; SOCKS5 192.168.1.2:1080; DIRECT
 
 ## Ссылки
 
-- 📦 [GitHub](https://github.com/prasx/chrome-proxy-manager)
-- 🐛 [Сообщить об ошибке](https://github.com/prasx/chrome-proxy-manager/issues)
-- 🔔 [Релизы](https://github.com/prasx/chrome-proxy-manager/releases)
+- [GitHub](https://github.com/prasx/chrome-proxy-manager)
+- [Сообщить об ошибке](https://github.com/prasx/chrome-proxy-manager/issues)
+- [Релизы](https://github.com/prasx/chrome-proxy-manager/releases)
 
 ## Лицензия
 

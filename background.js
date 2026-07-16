@@ -483,10 +483,10 @@ chrome.runtime.onStartup.addListener(() => {
 /** Создаёт пункты контекстного меню для добавления/удаления доменов */
 function createContextMenu() {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: 'addToProxyList', title: '🔒 Добавить в список прокси', contexts: ['page', 'link'] });
-    chrome.contextMenus.create({ id: 'addToDirectList', title: '✅ Добавить в список напрямую', contexts: ['page', 'link'] });
+    chrome.contextMenus.create({ id: 'addToProxyList', title: 'Добавить в список прокси', contexts: ['page', 'link'] });
+    chrome.contextMenus.create({ id: 'addToDirectList', title: 'Добавить в список напрямую', contexts: ['page', 'link'] });
     chrome.contextMenus.create({ id: 'separator1', type: 'separator', contexts: ['page', 'link'] });
-    chrome.contextMenus.create({ id: 'removeFromLists', title: '🗑️ Удалить из всех списков', contexts: ['page', 'link'] });
+    chrome.contextMenus.create({ id: 'removeFromLists', title: 'Удалить из всех списков', contexts: ['page', 'link'] });
   });
 }
 
