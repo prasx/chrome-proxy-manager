@@ -2,89 +2,88 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=380" />
+<meta name="viewport" content="width=420" />
 <title>Proxy Manager</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="popup-body">
 
-<div class="header">
+<header class="header">
   <div class="header-left">
-    <div class="logo-icon">
+    <div class="logo-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
     </div>
     <span class="logo-name">Proxy Manager</span>
   </div>
   <div class="header-actions">
-    <button class="header-btn" id="dashboardBtn" title="Панель управления">
-      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    <div class="header-modes" role="group" aria-label="Режим работы прокси">
+      <button class="header-mode" type="button" data-mode="auto" aria-pressed="false" title="Авто: недоступные сайты добавляются в прокси">Авто</button>
+      <button class="header-mode" type="button" data-mode="manual" aria-pressed="false" title="Ручной: через прокси идут только сайты из ваших правил">Ручной</button>
+    </div>
+    <button class="header-btn" id="dashboardBtn" type="button" title="Панель управления" aria-label="Открыть панель управления">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
   </div>
-</div>
+</header>
 
-<div class="status-row">
-  <span class="status-dot" id="statusDot"></span>
-  <span class="status-text" id="statusText">Подключено</span>
-  <span id="statusIp" style="font:400 11px/1 var(--font-mono);color:var(--muted);margin-left:auto;"></span>
-</div>
+<main class="popup-main">
 
-<div class="toggle-area">
-  <button class="toggle-btn active" id="toggleBtn" aria-label="Переключить прокси">
-    <div class="toggle-ring"></div>
-    <div class="toggle-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    </div>
-    <span class="toggle-label">Вкл</span>
-  </button>
-</div>
-
-<div class="info-section">
-  <div class="info-card" id="proxyInfoCard">
-    <div class="info-left">
-      <div class="info-location" id="proxyLocation">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        <span id="proxyName">—</span>
+  <section class="power-card" id="powerCard" data-state="checking" aria-live="polite">
+    <div class="power-head">
+      <div class="power-copy">
+        <h1 class="power-title" id="stateTitle">Проверяем прокси…</h1>
+        <p class="power-detail" id="stateDetail">Это займёт пару секунд</p>
       </div>
-      <div class="info-ip" id="proxyAddress">—</div>
+      <button class="power-switch" id="toggleBtn" type="button" role="switch" aria-checked="true" aria-label="Прокси включён">
+        <span class="power-switch__knob" aria-hidden="true"></span>
+      </button>
     </div>
-    <div class="info-right">
-      <span class="latency-dot" id="latencyDot"></span>
-      <span id="latencyText">—</span>
+
+    <dl class="power-grid">
+      <div class="power-grid__item">
+        <dt>Прокси</dt>
+        <dd id="proxyName">—</dd>
+      </div>
+      <div class="power-grid__item">
+        <dt>Внешний IP</dt>
+        <dd id="proxyIp">—</dd>
+      </div>
+      <div class="power-grid__item">
+        <dt>Отклик</dt>
+        <dd id="latency">—</dd>
+      </div>
+    </dl>
+
+    <div class="power-foot">
+      <span class="power-checked" id="checkedAt"></span>
+      <button class="link-btn" id="refreshBtn" type="button">Проверить ещё раз</button>
     </div>
-  </div>
-</div>
+  </section>
 
-<div class="mode-section">
-  <div class="mode-label">Режим работы</div>
-  <div class="mode-chips">
-    <button class="mode-chip active" data-mode="auto">Авто</button>
-    <button class="mode-chip" data-mode="manual">Ручной</button>
-  </div>
-  <div id="modeHint" style="font:400 11px/1.4 var(--font-body);color:var(--muted);margin-top:6px;padding:0 2px;">Недоступные сайты автоматически добавляются в прокси</div>
-</div>
+  <section class="page-rules" aria-labelledby="pageRulesTitle">
+    <div class="page-rules__head">
+      <div class="page-rules__copy">
+        <h2 class="section-label" id="pageRulesTitle">Домены страницы</h2>
+        <p class="page-rules__summary" id="pageRulesSummary">Собираем домены…</p>
+      </div>
+      <button class="link-btn" id="refreshDomainsBtn" type="button">Обновить</button>
+    </div>
 
-<div class="stats-bar" id="statsBar">
-  <div class="stat-item">
-    <div class="stat-value" id="statSessions">0</div>
-    <div class="stat-label">Сессий</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-value" id="statProxy">0</div>
-    <div class="stat-label">Через прокси</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-value" id="statDirect">0</div>
-    <div class="stat-label">Напрямую</div>
-  </div>
-</div>
+    <div class="page-rules__panel">
+      <div class="page-rules__list" id="pageRulesList"></div>
+      <div class="page-rules__actions" id="pageRulesActions" hidden>
+        <button class="btn btn-primary" id="applyDomainsBtn" type="button" disabled>Применить</button>
+        <button class="btn btn-secondary" id="resetDomainsBtn" type="button" title="Вернуть выбранные маршруты к текущим правилам">Отменить</button>
+      </div>
+    </div>
+  </section>
 
-<div class="proxy-section" style="margin-top:12px;">
-  <div class="proxy-section-header">
-    <span class="proxy-section-title">Анализ страницы</span>
+  <div class="rules-status">
+    <span class="rules-status__text" id="rulesStatusText">Правил пока нет</span>
+    <button class="link-btn" id="manageRulesBtn" type="button">Все правила</button>
   </div>
-  <button class="btn btn-secondary" id="analyzeBtn" style="width:100%;font-size:12px;">Найти связанные домены</button>
-  <div id="relatedDomainsBox" style="display:none;margin-top:8px;"></div>
-</div>
+
+</main>
 
 <script src="shared.js"></script>
 <script src="popup.js"></script>

@@ -56,23 +56,28 @@ function saveSettings() {
     webrtcProtectionEnabled: settings.webrtcProtectionEnabled,
     killSwitchEnabled: settings.killSwitchEnabled
   });
-  chrome.runtime.sendMessage({ action: 'setWebrtcPolicy', enabled: settings.webrtcProtectionEnabled });
+  chrome.runtime.sendMessage({ action: 'setWebrtcPolicy', enabled: settings.webrtcProtectionEnabled }, () => {
+    void chrome.runtime.lastError;
+  });
 }
 
 function initToggles() {
   document.querySelectorAll('.toggle-switch[data-key]').forEach(sw => {
     const key = sw.dataset.key;
+    sw.setAttribute('role', 'switch');
     sw.classList.toggle('on', settings[key] === true);
-    sw.addEventListener('click', () => {
+    sw.setAttribute('aria-checked', settings[key] === true ? 'true' : 'false');
+    sw.onclick = () => {
       settings[key] = !settings[key];
       sw.classList.toggle('on', settings[key]);
+      sw.setAttribute('aria-checked', settings[key] ? 'true' : 'false');
       saveSettings();
-    });
+    };
   });
   const timeoutInput = document.getElementById('timeoutInput');
   if (timeoutInput) {
     timeoutInput.value = settings.autoProxyTimeout;
-    timeoutInput.addEventListener('change', saveSettings);
+    timeoutInput.onchange = saveSettings;
   }
 }
 
@@ -101,7 +106,12 @@ function renderAll() {
 
 document.getElementById('addSettingsProxyBtn')?.addEventListener('click', () => {
   const input = document.getElementById('settingsProxyInput');
-  addToList(input.value, 'proxyList', () => { input.value = ''; loadSettings(); });
+  addToList(input.value, 'proxyList', (result) => {
+    if (!result.ok) { showToast(result.message || 'Не удалось добавить правило', 'error'); return; }
+    input.value = '';
+    loadSettings();
+    showToast(result.moved ? `Перемещено: ${result.value}` : `Добавлено: ${result.value}`, 'success');
+  });
 });
 document.getElementById('settingsProxyInput')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('addSettingsProxyBtn').click();
@@ -109,7 +119,12 @@ document.getElementById('settingsProxyInput')?.addEventListener('keydown', (e) =
 
 document.getElementById('addSettingsDirectBtn')?.addEventListener('click', () => {
   const input = document.getElementById('settingsDirectInput');
-  addToList(input.value, 'directList', () => { input.value = ''; loadSettings(); });
+  addToList(input.value, 'directList', (result) => {
+    if (!result.ok) { showToast(result.message || 'Не удалось добавить правило', 'error'); return; }
+    input.value = '';
+    loadSettings();
+    showToast(result.moved ? `Перемещено: ${result.value}` : `Добавлено: ${result.value}`, 'success');
+  });
 });
 document.getElementById('settingsDirectInput')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('addSettingsDirectBtn').click();

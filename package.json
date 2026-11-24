@@ -1,0 +1,10 @@
+{
+  "name": "chrome-proxy-manager",
+  "private": true,
+  "version": "0.8.0",
+  "description": "Chrome extension: selective proxy routing via PAC",
+  "scripts": {
+    "test": "node tests/shared.test.mjs && node tests/background.test.mjs",
+    "check": "node --check shared.js && node --check background.js && node --check popup.js && node --check dashboard.js && node --check onboarding.js && node --check settings.js"
+  }
+}
