@@ -9,7 +9,8 @@ let data = {
   activeProxyId: null,
   extensionEnabled: true,
   autoProxyEnabled: true,
-  killSwitchEnabled: false
+  killSwitchEnabled: false,
+  proxyHealth: {}
 };
 
 let currentPage = 'overview';
@@ -34,7 +35,7 @@ const testResults = new Map();
 
 function loadData(callback) {
   chrome.storage.local.get(
-    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled'],
+    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled', 'proxyHealth'],
     (result) => {
       data.proxyList = (Array.isArray(result.proxyList) ? result.proxyList : []).filter(item => item && typeof item === 'object');
       data.directList = (Array.isArray(result.directList) ? result.directList : []).filter(item => item && typeof item === 'object');
@@ -43,6 +44,9 @@ function loadData(callback) {
       data.extensionEnabled = result.extensionEnabled !== false;
       data.autoProxyEnabled = result.autoProxyEnabled !== false;
       data.killSwitchEnabled = result.killSwitchEnabled === true;
+      data.proxyHealth = result.proxyHealth && typeof result.proxyHealth === 'object'
+        ? result.proxyHealth
+        : {};
 
       renderAll();
       maybeProbeHealth(false);
@@ -198,9 +202,9 @@ function probeHealth() {
     if (!healthProbing) return;
     healthProbing = false;
     health.state = 'error';
-    health.message = 'Прокси не ответил за 15 секунд';
+    health.message = 'Прокси не ответил за 6 секунд';
     updateConnectionBar();
-  }, 16000);
+  }, 6000);
 
   chrome.runtime.sendMessage({ action: 'probeActiveProxy' }, (response) => {
     const error = chrome.runtime.lastError;
@@ -247,7 +251,7 @@ function renderOverview() {
       const configured = isProxyConfigured(proxy);
       const reserve = configured && !isActive;
       return `<div class="overview-server${isActive ? ' is-active' : ''}">
-        <span class="server-dot ${isActive && configured ? 'online' : 'offline'}" aria-hidden="true"></span>
+        ${proxyDot(proxy.id, isActive && configured)}
         <div class="overview-server__info">
           <div class="overview-server__name">${escapeHtml(proxy.name || 'Без имени')}</div>
           <div class="overview-server__meta">${escapeHtml(proxy.host || '—')}:${escapeHtml(proxy.port || '—')}, ${escapeHtml(displayProxyType(proxy.type))}${configured ? '' : ', не настроен'}</div>
@@ -305,9 +309,41 @@ function renderTestResult(result) {
   if (!result) return '<span class="server-test">—</span>';
   if (result.state === 'checking') return '<span class="server-test">Проверка…</span>';
   if (result.state === 'success') {
-    return `<span class="server-test is-good">IP ${escapeHtml(result.ip)}<span class="server-test__detail">, ${Math.round(result.latencyMs || 0)} мс</span></span>`;
+    const ip = result.ip ? `IP ${escapeHtml(result.ip)}` : '';
+    const latency = `${Math.round(result.latencyMs || 0)} мс`;
+    return `<span class="server-test is-good">${ip}${ip ? '<span class="server-test__detail">, ' + latency + '</span>' : latency}</span>`;
   }
   return `<span class="server-test is-error">Ошибка<span class="server-test__detail">${escapeHtml(result.message || 'Прокси недоступен')}</span></span>`;
+}
+
+function proxyHealthFor(proxyId) {
+  return data.proxyHealth[String(proxyId)] || null;
+}
+
+function proxyHealthTestResult(proxyId) {
+  const health = proxyHealthFor(proxyId);
+  if (!health) return null;
+  if (health.status === 'online') {
+    return { state: 'success', ip: health.ip || '', latencyMs: health.latencyMs || 0 };
+  }
+  if (health.status === 'offline') {
+    return { state: 'error', message: health.message || 'Недоступен' };
+  }
+  return null;
+}
+
+function proxyDot(proxyId, isActive) {
+  const health = proxyHealthFor(proxyId);
+  if (health && health.status === 'online') {
+    return `<span class="server-dot online" aria-hidden="true" title="Доступен${health.latencyMs ? `, ${Math.round(health.latencyMs)} мс` : ''}"></span>`;
+  }
+  if (health && health.status === 'offline') {
+    return '<span class="server-dot error" aria-hidden="true" title="Недоступен"></span>';
+  }
+  if (isActive) {
+    return '<span class="server-dot online" aria-hidden="true" title="Активный прокси"></span>';
+  }
+  return '<span class="server-dot offline" aria-hidden="true" title="Резервный прокси"></span>';
 }
 
 function renderServers() {
@@ -327,11 +363,12 @@ function renderServers() {
     const socksWarning = isSocksProxyType(proxy.type) && (String(proxy.username || '').trim() || String(proxy.password || '').trim());
     const type = normalizeProxyType(proxy.type) || 'SOCKS5';
     const typeValue = type === 'PROXY' ? 'PROXY' : type;
+    const testResult = testResults.get(id) || proxyHealthTestResult(id);
 
     return `<tr data-proxy-id="${escapeHtml(id)}">
       <td>
         <span class="server-status">
-          <span class="server-dot ${isActive ? 'online' : 'offline'}" aria-hidden="true" title="${isActive ? 'Активный прокси' : 'Резервный прокси'}"></span>
+          ${proxyDot(id, isActive)}
           <input type="text" class="proxy-item__field" value="${escapeHtml(proxy.name || '')}" data-id="${escapeHtml(id)}" data-field="name" placeholder="Название" aria-label="Название сервера" style="max-width:140px;">
         </span>
       </td>
@@ -350,7 +387,7 @@ function renderServers() {
         <input type="password" class="proxy-item__field" value="${escapeHtml(proxy.password || '')}" data-id="${escapeHtml(id)}" data-field="password" placeholder="Пароль" aria-label="Пароль прокси" autocomplete="new-password" style="max-width:110px;">
         ${socksWarning ? '<span class="inline-warning">Chrome не умеет авторизоваться на SOCKS — используйте IP-привязку или HTTP(S)</span>' : ''}
       </td>
-      <td class="server-test-cell" data-test-id="${escapeHtml(id)}" aria-live="polite">${renderTestResult(testResults.get(id))}</td>
+      <td class="server-test-cell" data-test-id="${escapeHtml(id)}" aria-live="polite">${renderTestResult(testResult)}</td>
       <td>
         <div class="server-actions">
           <button class="server-btn" type="button" title="Проверить прокси" aria-label="Проверить ${escapeHtml(proxy.name || proxy.host || 'прокси')}" data-id="${escapeHtml(id)}" data-action="test">
@@ -377,35 +414,63 @@ function updateServerTestCell(proxyId) {
 
 function runServerTest(proxyId, button) {
   const id = String(proxyId);
-  if (testResults.get(id) && testResults.get(id).state === 'checking') return;
+  if (testResults.get(id) && testResults.get(id).state === 'checking') return Promise.resolve(null);
 
-  testResults.set(id, { state: 'checking' });
-  updateServerTestCell(id);
-  if (button) button.disabled = true;
-
-  const timer = setTimeout(() => {
-    if (!testResults.get(id) || testResults.get(id).state !== 'checking') return;
-    testResults.set(id, { state: 'error', message: 'Таймаут проверки' });
+  return new Promise(resolve => {
+    testResults.set(id, { state: 'checking' });
     updateServerTestCell(id);
-    if (button) button.disabled = false;
-  }, 16000);
+    if (button) button.disabled = true;
 
-  chrome.runtime.sendMessage({ action: 'testProxy', proxyId }, (response) => {
-    clearTimeout(timer);
-    const error = chrome.runtime.lastError;
-    if (error || !response) {
-      testResults.set(id, { state: 'error', message: 'Фоновый процесс не ответил' });
-    } else if (response.success) {
-      testResults.set(id, { state: 'success', ip: response.ip, latencyMs: response.latencyMs });
-    } else {
-      testResults.set(id, { state: 'error', message: response.message || 'Прокси недоступен' });
-    }
+    let settled = false;
+    let timer = null;
 
-    updateServerTestCell(id);
-    if (button) button.disabled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      testResults.set(id, result);
+      updateServerTestCell(id);
+      if (button) button.disabled = false;
+      if (sameProxyId(proxyId, data.activeProxyId)) probeHealth();
+      resolve(result);
+    };
 
-    if (sameProxyId(proxyId, data.activeProxyId)) probeHealth();
+    timer = setTimeout(() => {
+      finish({ state: 'error', message: 'Таймаут проверки' });
+    }, 6000);
+
+    chrome.runtime.sendMessage({ action: 'testProxy', proxyId: id }, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error || !response) {
+        finish({ state: 'error', message: 'Фоновый процесс не ответил' });
+      } else if (response.success) {
+        finish({ state: 'success', ip: response.ip, latencyMs: response.latencyMs });
+      } else {
+        finish({ state: 'error', message: response.message || 'Прокси недоступен' });
+      }
+    });
   });
+}
+
+async function runAllServerTests() {
+  const button = $('serversTestAllBtn');
+  if (!button || button.disabled) return;
+
+  const configured = data.proxies.filter(isProxyConfigured);
+  if (configured.length === 0) {
+    showToast('Нет настроенных серверов для проверки', 'info');
+    return;
+  }
+
+  const label = button.textContent;
+  button.disabled = true;
+  for (let i = 0; i < configured.length; i++) {
+    button.textContent = `Проверяем ${i + 1}/${configured.length}`;
+    await runServerTest(configured[i].id);
+  }
+  button.disabled = false;
+  button.textContent = label;
+  showToast('Все серверы проверены', 'success');
 }
 
 function setupServerHandlers() {
@@ -503,6 +568,10 @@ function setupServerHandlers() {
     }
   });
 }
+
+$('serversTestAllBtn').addEventListener('click', () => {
+  void runAllServerTests();
+});
 
 $('serversAddBtn').addEventListener('click', () => {
   chrome.storage.local.get(['proxies'], (result) => {
@@ -903,7 +972,7 @@ const scheduleReload = debounce(() => {
 }, 250);
 
 chrome.storage.onChanged.addListener((changes) => {
-  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled'];
+  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled', 'proxyHealth'];
   if (relevant.some(key => changes[key])) scheduleReload();
 });
 

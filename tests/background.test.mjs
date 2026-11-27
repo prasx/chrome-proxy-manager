@@ -102,7 +102,8 @@ const chrome = {
   },
   action: {
     setBadgeText() {},
-    setBadgeBackgroundColor() {}
+    setBadgeBackgroundColor() {},
+    setTitle() {}
   },
   contextMenus: {
     removeAll(cb) { setTimeout(() => cb && cb(), 0); },
@@ -253,4 +254,43 @@ test('related domains ignore browser and extension pages', async () => {
   const response = await sendMessage({ action: 'getRelatedDomains' });
   assert.equal(response.mainDomain, null);
   activeTabUrl = 'https://example.com/page';
+});
+
+test('proxy error stores a visible issue reason and can be acknowledged', async () => {
+  events.proxyError.emit({ details: 'net::ERR_PROXY_CONNECTION_FAILED', fatal: true });
+  await delay(30);
+
+  const status = await sendMessage({ action: 'getProxyStatus' });
+  assert.equal(status.lastIssue.kind, 'proxy');
+  assert.match(status.lastIssue.message, /ERR_PROXY_CONNECTION_FAILED/);
+
+  const acknowledged = await sendMessage({ action: 'acknowledgeIssue' });
+  assert.equal(acknowledged.success, true);
+  await delay(30);
+
+  const after = await sendMessage({ action: 'getProxyStatus' });
+  assert.equal(after.lastIssue, null);
+});
+
+test('health check switches to a working reserve and records health', async () => {
+  store.activeProxyId = 'p1';
+  await delay(50);
+  const originalFetch = sandbox.fetch;
+
+  sandbox.fetch = async (url) => {
+    if (String(url).includes('ipify')) throw new Error('active proxy is down');
+    return { ok: true, status: 204, json: async () => ({}) };
+  };
+
+  try {
+    events.alarm.emit({ name: 'proxyManagerHealth' });
+    await delay(1600);
+
+    const status = await sendMessage({ action: 'getProxyStatus' });
+    assert.equal(status.activeProxy.id, 'p2');
+    assert.equal(store.proxyHealth.p1.status, 'offline');
+    assert.equal(store.proxyHealth.p2.status, 'online');
+  } finally {
+    sandbox.fetch = originalFetch;
+  }
 });

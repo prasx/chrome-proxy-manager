@@ -19,12 +19,13 @@ const MAX_STAT_DOMAINS = 400;
 const STATS_SAVE_DELAY = 1200;
 const LOG_FLUSH_DELAY = 400;
 const AUTO_PROXY_COOLDOWN = 15000;
-const AUTO_NOTIFY_COOLDOWN = 8000;
+const AUTO_NOTIFY_COOLDOWN = 30000;
 const RELOAD_COOLDOWN = 5000;
 const FALLBACK_FAILURE_WINDOW = 60000;
 const FALLBACK_COOLDOWN = 30000;
 const MAINTENANCE_ALARM = 'proxyManagerMaintenance';
 const RESTORE_ALARM = 'proxyManagerRestoreProxy';
+const HEALTH_ALARM = 'proxyManagerHealth';
 
 const RETRYABLE_ERRORS = [
   'net::ERR_NAME_NOT_RESOLVED',
@@ -86,6 +87,12 @@ let lastStatsSaveAt = 0;
 /** Активный тест: в это время нельзя перезаписывать PAC обычной конфигурацией. */
 let testSession = null;
 let lastProxyError = null;
+let lastIssue = null;
+let acknowledgedIssueKey = '';
+let issueMuteUntil = 0;
+let activeHealthFailures = 0;
+let lastAutoSwitchAt = 0;
+let lastHealthIssueAt = 0;
 
 /** Попытки авто-прокси, чтобы не долбить storage на каждый ресурс. */
 const autoProxyAttempts = new Map();
@@ -270,6 +277,7 @@ function applyProxyConfigNow() {
     if (error) {
       logRoute('ERROR', 'Proxy config failed', error);
       lastAppliedSignature = '';
+      setIssue('config', `Не удалось применить настройки прокси: ${error}`);
       if (Date.now() - lastConfigErrorNotifyAt > 60000) {
         lastConfigErrorNotifyAt = Date.now();
         chrome.notifications.create({
@@ -437,6 +445,40 @@ function updateStats(routeType, domain) {
 function showBadge(text, bgColor) {
   chrome.action.setBadgeText({ text });
   chrome.action.setBadgeBackgroundColor({ color: bgColor || BADGE_COLORS[text] || '#111111' });
+  if (text !== '!') chrome.action.setTitle({ title: 'Proxy Manager' });
+}
+
+/**
+ * Запоминает причину красного «!» рядом с иконкой и делает её
+ * видимой в попапе, подсказке иконки и логах.
+ */
+function setIssue(kind, message, proxyId) {
+  const text = String(message || 'Ошибка прокси').slice(0, 300);
+  const issueKey = `${kind}:${text}`;
+
+  // После «Скрыть» не возвращаем тот же значок из-за повторяющейся
+  // ошибки в течение минуты. Другие ошибки показываются сразу.
+  if (issueKey === acknowledgedIssueKey && Date.now() < issueMuteUntil) return;
+
+  lastIssue = {
+    at: Date.now(),
+    kind,
+    message: text,
+    proxyId: proxyId ? String(proxyId) : null
+  };
+  chrome.storage.local.set({ lastIssue });
+  showBadge('!');
+  chrome.action.setTitle({ title: `Proxy Manager: ${text.slice(0, 120)}` });
+}
+
+function proxyErrorText(message) {
+  const raw = String(message || '');
+  if (/ERR_PROXY_CONNECTION_FAILED/.test(raw)) return 'Не удалось подключиться к прокси';
+  if (/ERR_TUNNEL_CONNECTION_FAILED/.test(raw)) return 'Прокси не установил туннель';
+  if (/ERR_SOCKS_CONNECTION/.test(raw)) return 'SOCKS-прокси не отвечает';
+  if (/ERR_PROXY_AUTH/.test(raw)) return 'Прокси требует авторизацию';
+  if (/ERR_PROXY_CERTIFICATE/.test(raw)) return 'Ошибка сертификата прокси';
+  return 'Ошибка прокси';
 }
 
 // ===================== ОЧЕРЕДЬ ЗАПИСИ В STORAGE =====================
@@ -541,6 +583,7 @@ function recordProxyFailure(message, options) {
   lastProxyErrorLog = { message: rawMessage, at: now };
   chrome.storage.local.set({ lastProxyError });
   logRoute('ERROR', 'Proxy error', displayMessage);
+  setIssue('proxy', `${proxyErrorText(rawMessage)}: ${displayMessage}`, activeProxy ? activeProxy.id : null);
 
   if (opts.rotate === false || !activeProxy) return;
   if (!isProxyConfigured(activeProxy)) return;
@@ -558,7 +601,10 @@ function recordProxyFailure(message, options) {
 function switchToFallbackProxy(reason) {
   const proxies = cachedConfig.proxies.filter(isProxyConfigured);
   if (proxies.length < 2) {
-    showBadge('!');
+    const active = findProxyById(cachedConfig.proxies, cachedConfig.activeProxyId);
+    setIssue('proxy', active
+      ? `Прокси ${proxyLabel(active)} недоступен, резервных серверов нет`
+      : 'Прокси недоступен, резервных серверов нет');
     return;
   }
   if (Date.now() - lastFallbackAt < FALLBACK_COOLDOWN) return;
@@ -572,7 +618,8 @@ function switchToFallbackProxy(reason) {
     `${proxyLabel(proxies[currentIndex])} → ${proxyLabel(next)} (${reason})`);
 
   chrome.storage.local.set({ activeProxyId: next.id }, () => {
-    showBadge('!');
+    setIssue('fallback',
+      `Прокси ${proxyLabel(proxies[currentIndex])} не отвечает. Активный: ${proxyLabel(next)}`);
     if (Date.now() - lastFallbackNotifyAt > 5 * 60 * 1000) {
       lastFallbackNotifyAt = Date.now();
       chrome.notifications.create({
@@ -611,7 +658,7 @@ function handleAuthRequired(details, callback) {
       ? `${challenger.host}:${challenger.port}`
       : 'прокси';
     logRoute('ERROR', 'Proxy auth', `Требуется логин и пароль для ${where}`);
-    showBadge('!');
+    setIssue('auth', `Требуется логин и пароль для ${where}`);
   }
   callback({});
 }
@@ -991,14 +1038,27 @@ function setProxyValue(value) {
 
 function buildTestPac(proxy) {
   const route = escapePacString(proxyToPacString(proxy));
-  return `function FindProxyForURL(url, host){if(host==="api.ipify.org"||host==="api64.ipify.org")return"${route}";return"DIRECT";}`;
+  const hosts = ['api.ipify.org', 'api64.ipify.org', 'www.gstatic.com', 'cp.cloudflare.com'];
+  const probe = hosts
+    .map(host => `(host.toLowerCase() === "${host}" || host.toLowerCase().endsWith(".${host}"))`)
+    .join(' || ');
+  const probeLine = `  if (${probe}) return "${route}";\n`;
+  const marker = 'function FindProxyForURL(url, host) {\n';
+  const normal = generatePAC(cachedConfig);
+
+  // Остальной трафик продолжает идти по обычным правилам, а не напрямую.
+  if (normal.includes(marker)) {
+    return normal.replace(marker, marker + probeLine);
+  }
+  return `function FindProxyForURL(url, host){${probeLine}return "DIRECT";}`;
 }
 
-async function fetchExternalIp() {
+async function fetchExternalIp(options = {}) {
   const endpoints = [
     'https://api.ipify.org?format=json',
     'https://api64.ipify.org?format=json'
   ];
+  const timeoutMs = Math.max(800, Math.min(5000, Number(options.timeoutMs) || 2200));
   let lastError = null;
 
   for (const endpoint of endpoints) {
@@ -1006,7 +1066,7 @@ async function fetchExternalIp() {
     try {
       const response = await fetch(endpoint + '&_=' + Date.now(), {
         cache: 'no-store',
-        signal: AbortSignal.timeout(7000)
+        signal: AbortSignal.timeout(timeoutMs)
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
@@ -1020,7 +1080,36 @@ async function fetchExternalIp() {
   throw lastError || new Error('Сервис проверки IP недоступен');
 }
 
-async function runProxyTest(proxyId) {
+/**
+ * Лёгкий ping через уже настроенный прокси: 204-ответ без тела.
+ * Используется для фоновой проверки резервных серверов.
+ */
+async function fetchFastPing(options = {}) {
+  const endpoints = [
+    'https://www.gstatic.com/generate_204',
+    'https://cp.cloudflare.com/generate_204'
+  ];
+  const timeoutMs = Math.max(600, Math.min(3000, Number(options.timeoutMs) || 1600));
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    const started = Date.now();
+    try {
+      const response = await fetch(endpoint + '?_=' + Date.now(), {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      if (!response.ok && response.status !== 204) throw new Error('HTTP ' + response.status);
+      return { latencyMs: Date.now() - started };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('Ping не удался');
+}
+
+async function runProxyTest(proxyId, options = {}) {
+  const opts = options || {};
   if (testSession) {
     return { success: false, error: 'busy', message: 'Другой тест уже выполняется' };
   }
@@ -1043,17 +1132,26 @@ async function runProxyTest(proxyId) {
       mode: 'pac_script',
       pacScript: { data: buildTestPac(proxy) }
     });
-    const probe = await fetchExternalIp();
-    logRoute('CONFIG', 'Proxy test', `${proxyLabel(proxy)} → ${probe.ip} (${probe.latencyMs} мс)`);
+    const probe = opts.fast
+      ? await fetchFastPing({ timeoutMs: opts.timeoutMs })
+      : await fetchExternalIp({ timeoutMs: opts.timeoutMs });
+    recordProxyHealth(proxy, 'online', probe);
+    if (!opts.quiet) {
+      logRoute('CONFIG', 'Proxy test',
+        `${proxyLabel(proxy)}${probe.ip ? ` → ${probe.ip}` : ''} (${probe.latencyMs} мс)`);
+    }
     return {
       success: true,
-      ip: probe.ip,
+      ip: probe.ip || null,
       latencyMs: probe.latencyMs,
       proxy: publicProxy(proxy)
     };
   } catch (error) {
     const message = friendlyProbeError(error);
-    logRoute('ERROR', 'Proxy test failed', `${proxyLabel(proxy)} — ${message}`);
+    recordProxyHealth(proxy, 'offline', { message });
+    if (!opts.quiet) {
+      logRoute('ERROR', 'Proxy test failed', `${proxyLabel(proxy)} — ${message}`);
+    }
     return { success: false, error: 'unreachable', message, proxy: publicProxy(proxy) };
   } finally {
     testSession = null;
@@ -1063,7 +1161,8 @@ async function runProxyTest(proxyId) {
   }
 }
 
-async function probeActiveProxy() {
+async function probeActiveProxy(options = {}) {
+  const opts = options || {};
   if (testSession) {
     return { success: false, error: 'busy', message: 'Идёт тест прокси' };
   }
@@ -1077,7 +1176,8 @@ async function probeActiveProxy() {
   }
 
   try {
-    const probe = await fetchExternalIp();
+    const probe = await fetchExternalIp({ timeoutMs: opts.timeoutMs || 2200 });
+    recordProxyHealth(activeProxy, 'online', probe);
     return {
       success: true,
       ip: probe.ip,
@@ -1086,8 +1186,108 @@ async function probeActiveProxy() {
     };
   } catch (error) {
     const message = friendlyProbeError(error);
-    logRoute('ERROR', 'Proxy prober', `${proxyLabel(activeProxy)} — ${message}`);
+    recordProxyHealth(activeProxy, 'offline', { message });
+    if (!opts.quiet) {
+      logRoute('ERROR', 'Proxy prober', `${proxyLabel(activeProxy)} — ${message}`);
+    }
     return { success: false, error: 'unreachable', message, proxy: publicProxy(activeProxy) };
+  }
+}
+
+// ===================== ЗДОРОВЬЕ И АВТОПЕРЕКЛЮЧЕНИЕ =====================
+
+function recordProxyHealth(proxy, status, details = {}) {
+  if (!proxy || !proxy.id) return;
+  chrome.storage.local.get(['proxyHealth'], (data) => {
+    const health = data.proxyHealth && typeof data.proxyHealth === 'object'
+      ? data.proxyHealth
+      : {};
+    health[String(proxy.id)] = {
+      status,
+      latencyMs: Math.max(0, Math.round(Number(details.latencyMs) || 0)),
+      ip: details.ip ? String(details.ip) : null,
+      message: details.message ? String(details.message).slice(0, 200) : '',
+      checkedAt: Date.now()
+    };
+    chrome.storage.local.set({ proxyHealth: health });
+  });
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function switchToHealthyProxy(current) {
+  const configured = cachedConfig.proxies.filter(isProxyConfigured);
+  if (configured.length < 2) return false;
+
+  const currentIndex = configured.findIndex(p => sameProxyId(p.id, current.id));
+  const ordered = currentIndex === -1
+    ? configured
+    : configured.slice(currentIndex + 1).concat(configured.slice(0, currentIndex));
+
+  for (const candidate of ordered) {
+    if (sameProxyId(candidate.id, current.id)) continue;
+    const test = await runProxyTest(candidate.id, { fast: true, quiet: true });
+    if (!test.success) continue;
+
+    lastAutoSwitchAt = Date.now();
+    await new Promise(resolve => {
+      chrome.storage.local.set({ activeProxyId: candidate.id }, resolve);
+    });
+
+    logRoute('AUTO', 'Proxy health',
+      `${proxyLabel(current)} недоступен → ${proxyLabel(candidate)} (${test.latencyMs} мс)`);
+    setIssue('fallback',
+      `Прокси ${proxyLabel(current)} не отвечает. Активный: ${proxyLabel(candidate)}`);
+
+    if (Date.now() - lastFallbackNotifyAt > 5 * 60 * 1000) {
+      lastFallbackNotifyAt = Date.now();
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'logo.png',
+        title: 'Переключение прокси',
+        message: `Активный прокси: ${proxyLabel(candidate)}`
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
+async function checkActiveProxyHealth() {
+  if (!configReady || !cachedConfig.extensionEnabled || testSession || applyInFlight) return;
+
+  const activeProxy = findProxyById(cachedConfig.proxies, cachedConfig.activeProxyId);
+  if (!isProxyConfigured(activeProxy)) return;
+
+  let result = await probeActiveProxy({ quiet: true, timeoutMs: 2200 });
+  if (result.error === 'busy' || result.error === 'disabled') return;
+  if (!result.success) {
+    // Один повторяющийся сбой может быть сетевым провалом, а не мёртвым прокси.
+    await wait(900);
+    result = await probeActiveProxy({ quiet: true, timeoutMs: 2200 });
+    if (result.error === 'busy' || result.error === 'disabled') return;
+  }
+
+  if (result.success) {
+    activeHealthFailures = 0;
+    return;
+  }
+
+  activeHealthFailures += 1;
+  if (Date.now() - lastAutoSwitchAt < 60000) return;
+
+  activeHealthFailures = 0;
+  const switched = await switchToHealthyProxy(activeProxy);
+  if (switched) return;
+
+  if (Date.now() - lastHealthIssueAt > 5 * 60 * 1000) {
+    lastHealthIssueAt = Date.now();
+    logRoute('ERROR', 'Proxy health',
+      `${proxyLabel(activeProxy)} недоступен, резервные серверы не ответили`);
+    setIssue('proxy',
+      `Прокси ${proxyLabel(activeProxy)} недоступен, резервные серверы не ответили`);
   }
 }
 
@@ -1245,7 +1445,8 @@ function getProxyStatus() {
     rulesCount: cachedConfig.proxyList.length + cachedConfig.directList.length,
     activeProxy: publicProxy(activeProxy),
     testInProgress: Boolean(testSession),
-    lastProxyError
+    lastProxyError,
+    lastIssue
   };
 }
 
@@ -1293,6 +1494,21 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'clearBadge') {
     clearBadge();
     sendResponse({ success: true });
+    return true;
+  }
+
+  if (request.action === 'acknowledgeIssue') {
+    if (lastIssue) {
+      acknowledgedIssueKey = `${lastIssue.kind}:${lastIssue.message}`;
+      issueMuteUntil = Date.now() + 60000;
+    }
+    lastIssue = null;
+    lastProxyError = null;
+    chrome.storage.local.set({ lastIssue: null, lastProxyError: null }, () => {
+      clearBadge();
+      chrome.action.setTitle({ title: 'Proxy Manager' });
+      sendResponse({ success: true });
+    });
     return true;
   }
 
@@ -1448,11 +1664,24 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     flushLogs();
     saveStatsNow();
     maybeCleanupLogs();
+    return;
+  }
+
+  if (alarm.name === HEALTH_ALARM) {
+    void checkActiveProxyHealth();
   }
 });
 
 if (chrome.alarms) {
   chrome.alarms.create(MAINTENANCE_ALARM, { periodInMinutes: 30 });
+  chrome.alarms.create(HEALTH_ALARM, { periodInMinutes: 1 });
+}
+
+if (chrome.notifications && chrome.notifications.onClicked) {
+  chrome.notifications.onClicked.addListener((notificationId) => {
+    chrome.notifications.clear(notificationId);
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html#activity') });
+  });
 }
 
 // ===================== ИНИЦИАЛИЗАЦИЯ =====================
@@ -1460,9 +1689,12 @@ if (chrome.alarms) {
 restoreTabDomains();
 initStats();
 
-chrome.storage.local.get(['lastProxyError'], (data) => {
+chrome.storage.local.get(['lastProxyError', 'lastIssue'], (data) => {
   if (data.lastProxyError && typeof data.lastProxyError === 'object') {
     lastProxyError = data.lastProxyError;
+  }
+  if (data.lastIssue && typeof data.lastIssue === 'object') {
+    lastIssue = data.lastIssue;
   }
 });
 

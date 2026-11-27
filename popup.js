@@ -20,7 +20,8 @@ const state = {
   domainsLoaded: false,
   domainsPollTimer: null,
   domainsRefreshing: false,
-  pageDomains: null
+  pageDomains: null,
+  lastIssue: null
 };
 
 const POWER_STATES = {
@@ -29,12 +30,19 @@ const POWER_STATES = {
   checking: { title: 'Проверяем прокси…', detail: 'Пара секунд' }
 };
 
+const ISSUE_TITLES = {
+  proxy: 'Красный значок: ошибка прокси',
+  fallback: 'Красный значок: переключение прокси',
+  auth: 'Красный значок: нужна авторизация',
+  config: 'Красный значок: настройки не применились'
+};
+
 // ============= ДАННЫЕ =============
 
 function loadData(options) {
   const opts = options || {};
   chrome.storage.local.get(
-    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled'],
+    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled', 'lastIssue'],
     (data) => {
       state.data.proxyList = (Array.isArray(data.proxyList) ? data.proxyList : []).filter(item => item && typeof item === 'object');
       state.data.directList = (Array.isArray(data.directList) ? data.directList : []).filter(item => item && typeof item === 'object');
@@ -43,9 +51,11 @@ function loadData(options) {
       state.data.extensionEnabled = data.extensionEnabled !== false;
       state.data.autoProxyEnabled = data.autoProxyEnabled !== false;
       state.data.killSwitchEnabled = data.killSwitchEnabled === true;
+      state.lastIssue = data.lastIssue && typeof data.lastIssue === 'object' ? data.lastIssue : null;
 
       lastConfigKey = currentConfigKey();
       render();
+      renderIssue();
       syncPageDomainRules();
       renderRulesStatus();
       renderPageRules();
@@ -81,6 +91,22 @@ function setStatus(title, detail, cardState) {
   setText('stateTitle', title);
   setText('stateDetail', detail);
   $('powerCard').dataset.state = cardState;
+}
+
+function renderIssue() {
+  const issue = state.lastIssue;
+  const banner = $('issueBanner');
+  if (!banner) return;
+
+  const recent = issue && Number(issue.at) && Date.now() - Number(issue.at) < 30 * 60 * 1000;
+  if (!recent || !issue.message) {
+    banner.hidden = true;
+    return;
+  }
+
+  setText('issueTitle', ISSUE_TITLES[issue.kind] || 'Красный значок: ошибка');
+  setText('issueText', issue.message);
+  banner.hidden = false;
 }
 
 function render() {
@@ -205,8 +231,8 @@ function probe() {
   };
 
   state.probeTimer = setTimeout(() => {
-    done({ success: false, error: 'timeout', message: 'Прокси не ответил за 15 секунд' });
-  }, 15000);
+    done({ success: false, error: 'timeout', message: 'Прокси не ответил за 6 секунд' });
+  }, 6000);
 
   try {
     chrome.runtime.sendMessage({ action: 'probeActiveProxy' }, (response) => {
@@ -261,6 +287,16 @@ $('dashboardBtn').addEventListener('click', () => openDashboard(''));
 $('manageRulesBtn').addEventListener('click', () => openDashboard('#rules'));
 $('refreshBtn').addEventListener('click', probe);
 $('refreshDomainsBtn').addEventListener('click', () => loadPageDomains());
+
+$('issueLogsBtn').addEventListener('click', () => openDashboard('#activity'));
+$('issueDismissBtn').addEventListener('click', () => {
+  state.lastIssue = null;
+  renderIssue();
+  chrome.runtime.sendMessage({ action: 'acknowledgeIssue' }, () => {
+    void chrome.runtime.lastError;
+    loadData();
+  });
+});
 
 // ============= ПРАВИЛА: КОМПАКТНЫЙ СТАТУС =============
 
@@ -646,7 +682,7 @@ function currentConfigKey() {
 const scheduleRefresh = debounce(() => {
   const before = lastConfigKey;
   chrome.storage.local.get(
-    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled'],
+    ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled', 'lastIssue'],
     (data) => {
       state.data.proxyList = (Array.isArray(data.proxyList) ? data.proxyList : []).filter(item => item && typeof item === 'object');
       state.data.directList = (Array.isArray(data.directList) ? data.directList : []).filter(item => item && typeof item === 'object');
@@ -655,9 +691,11 @@ const scheduleRefresh = debounce(() => {
       state.data.extensionEnabled = data.extensionEnabled !== false;
       state.data.autoProxyEnabled = data.autoProxyEnabled !== false;
       state.data.killSwitchEnabled = data.killSwitchEnabled === true;
+      state.lastIssue = data.lastIssue && typeof data.lastIssue === 'object' ? data.lastIssue : null;
 
       lastConfigKey = currentConfigKey();
       render();
+      renderIssue();
       syncPageDomainRules();
       renderRulesStatus();
       renderPageRules();
@@ -674,7 +712,7 @@ const scheduleRefresh = debounce(() => {
 }, 250);
 
 chrome.storage.onChanged.addListener((changes) => {
-  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled'];
+  const relevant = ['proxyList', 'directList', 'proxies', 'activeProxyId', 'extensionEnabled', 'autoProxyEnabled', 'killSwitchEnabled', 'lastIssue'];
   if (relevant.some(key => changes[key])) scheduleRefresh();
 });
 

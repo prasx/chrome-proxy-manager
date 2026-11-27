@@ -164,14 +164,14 @@ document.getElementById('importConfigFile')?.addEventListener('change', (e) => {
       if (config.directList) updates.directList = config.directList;
       if (config.proxies) updates.proxies = config.proxies;
       if (config.activeProxyId) updates.activeProxyId = config.activeProxyId;
-      chrome.storage.local.set(updates, () => { loadSettings(); alert('Конфигурация импортирована'); });
-    } catch (err) { alert('Ошибка импорта: ' + err.message); }
+      chrome.storage.local.set(updates, () => { loadSettings(); showToast('Конфигурация импортирована', 'success'); });
+    } catch (err) { showToast('Ошибка импорта: ' + err.message, 'error'); }
   };
   reader.readAsText(file);
 });
 
 document.getElementById('resetStatsBtn')?.addEventListener('click', () => {
-  chrome.runtime.sendMessage({ action: 'resetStats' }, () => alert('Статистика сброшена'));
+  chrome.runtime.sendMessage({ action: 'resetStats' }, () => showToast('Статистика сброшена', 'success'));
 });
 
 document.getElementById('backLink')?.addEventListener('click', (e) => {
