@@ -18,6 +18,8 @@ const state = {
   probeToken: 0,
   checkedAt: 0,
   domainsLoaded: false,
+  domainsPollTimer: null,
+  domainsRefreshing: false,
   pageDomains: null
 };
 
@@ -44,6 +46,7 @@ function loadData(options) {
 
       lastConfigKey = currentConfigKey();
       render();
+      syncPageDomainRules();
       renderRulesStatus();
       renderPageRules();
 
@@ -320,16 +323,87 @@ function matchRoute(domain) {
   return { mode: null, rule: null };
 }
 
+function syncPageDomainRules() {
+  const domains = state.pageDomains;
+  if (!domains || domains.loading || domains.error) return;
+
+  domains.items.forEach(item => {
+    const matched = matchRoute(item.domain);
+    const hasPendingChoice = item.mode !== item.initialMode;
+    item.rule = matched.rule;
+    item.initialMode = matched.mode;
+    if (!hasPendingChoice) item.mode = matched.mode;
+  });
+}
+
+function domainsFromResponse(response) {
+  const domains = [response.mainDomain];
+  (response.relatedDomains || []).forEach(domain => {
+    if (!domains.includes(domain)) domains.push(domain);
+  });
+  return domains;
+}
+
+function mergePageDomains(domains, mainDomain, collecting) {
+  const current = state.pageDomains;
+  const samePage = Boolean(current && !current.loading && !current.error && current.mainDomain === mainDomain);
+  const previous = samePage ? current.items : [];
+  const previousByDomain = new Map(previous.map(item => [item.domain, item]));
+
+  const nextItems = domains.slice(0, 80).map(domain => {
+    const matched = matchRoute(domain);
+    const existing = previousByDomain.get(domain);
+    if (existing) {
+      const hasPendingChoice = existing.mode !== existing.initialMode;
+      existing.rule = matched.rule;
+      existing.initialMode = matched.mode;
+      if (!hasPendingChoice) existing.mode = matched.mode;
+      return existing;
+    }
+    return {
+      domain,
+      mode: matched.mode,
+      initialMode: matched.mode,
+      rule: matched.rule
+    };
+  });
+
+  const changed = !samePage ||
+    !current ||
+    current.collecting !== (collecting === true) ||
+    current.items.length !== nextItems.length ||
+    current.items.some((item, index) => {
+      const next = nextItems[index];
+      return !next ||
+        item.domain !== next.domain ||
+        item.mode !== next.mode ||
+        item.initialMode !== next.initialMode ||
+        item.rule !== next.rule;
+    });
+
+  state.pageDomains = {
+    loading: false,
+    mainDomain,
+    items: nextItems,
+    error: '',
+    collecting: collecting === true,
+    result: samePage && current ? current.result : null
+  };
+
+  if (changed) renderPageRules();
+}
+
 function loadPageDomains() {
   if (state.pageDomains && state.pageDomains.loading) return;
+  const previous = state.pageDomains;
 
   state.pageDomains = {
     loading: true,
-    mainDomain: null,
-    items: [],
+    mainDomain: previous ? previous.mainDomain : null,
+    items: previous ? previous.items : [],
     error: '',
-    collecting: false,
-    result: null
+    collecting: previous ? previous.collecting : false,
+    result: previous ? previous.result : null
   };
   renderPageRules();
 
@@ -362,30 +436,28 @@ function loadPageDomains() {
       return;
     }
 
-    const domains = [response.mainDomain];
-    (response.relatedDomains || []).forEach(domain => {
-      if (!domains.includes(domain)) domains.push(domain);
-    });
+    mergePageDomains(
+      domainsFromResponse(response),
+      response.mainDomain,
+      response.collecting
+    );
+  });
+}
 
-    const items = domains.slice(0, 80).map(domain => {
-      const matched = matchRoute(domain);
-      return {
-        domain,
-        mode: matched.mode,
-        initialMode: matched.mode,
-        rule: matched.rule
-      };
-    });
+function refreshPageDomainsSilently() {
+  if (state.domainsRefreshing || !state.pageDomains || state.pageDomains.loading) return;
+  state.domainsRefreshing = true;
 
-    state.pageDomains = {
-      loading: false,
-      mainDomain: response.mainDomain,
-      items,
-      error: '',
-      collecting: response.collecting === true,
-      result: null
-    };
-    renderPageRules();
+  chrome.runtime.sendMessage({ action: 'getRelatedDomains' }, (response) => {
+    state.domainsRefreshing = false;
+    const error = chrome.runtime.lastError;
+    if (error || !response || !response.mainDomain) return;
+
+    mergePageDomains(
+      domainsFromResponse(response),
+      response.mainDomain,
+      response.collecting
+    );
   });
 }
 
@@ -586,6 +658,7 @@ const scheduleRefresh = debounce(() => {
 
       lastConfigKey = currentConfigKey();
       render();
+      syncPageDomainRules();
       renderRulesStatus();
       renderPageRules();
 
@@ -609,3 +682,14 @@ chrome.storage.onChanged.addListener((changes) => {
 
 lastConfigKey = currentConfigKey();
 loadData({ probe: true });
+
+state.domainsPollTimer = setInterval(() => {
+  if (!document.hidden) refreshPageDomainsSilently();
+}, 3000);
+
+window.addEventListener('pagehide', () => {
+  if (state.domainsPollTimer) {
+    clearInterval(state.domainsPollTimer);
+    state.domainsPollTimer = null;
+  }
+});

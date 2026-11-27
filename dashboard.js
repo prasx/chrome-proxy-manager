@@ -46,6 +46,7 @@ function loadData(callback) {
 
       renderAll();
       maybeProbeHealth(false);
+      if (currentPage === 'settings') initSettingsPage();
       if (typeof callback === 'function') callback();
     }
   );
@@ -700,11 +701,41 @@ function updateKillSwitchWarning() {
   warning.hidden = !(settingsData.killSwitchEnabled && configured === 0);
 }
 
+function updateSettingsSummary() {
+  const proxyState = $('settingsProxyState');
+  const serverState = $('settingsServerState');
+  const modeState = $('settingsModeState');
+  const rulesState = $('settingsRulesState');
+  const active = findProxyById(data.proxies, data.activeProxyId);
+
+  if (proxyState) {
+    proxyState.textContent = data.extensionEnabled ? 'Включён' : 'Выключен';
+    proxyState.className = 'settings-summary__value ' + (data.extensionEnabled ? 'is-on' : 'is-off');
+  }
+  if (serverState) {
+    serverState.textContent = active
+      ? (active.name || `${active.host}:${active.port}`)
+      : '—';
+  }
+  if (modeState) modeState.textContent = data.autoProxyEnabled ? 'Авто' : 'Ручной';
+  if (rulesState) rulesState.textContent = String(data.proxyList.length + data.directList.length);
+}
+
+function updateTimeoutControls() {
+  const input = $('dashTimeoutInput');
+  const output = $('dashTimeoutValue');
+  const row = $('timeoutRow');
+  if (!input) return;
+
+  input.disabled = !settingsData.autoProxyTimeoutEnabled;
+  if (row) row.classList.toggle('is-disabled', !settingsData.autoProxyTimeoutEnabled);
+  if (output) output.textContent = `${settingsData.autoProxyTimeout} с`;
+}
+
 function saveSettingsData() {
-  const timeoutInput = $('dashTimeoutInput');
-  let timeout = parseInt(timeoutInput && timeoutInput.value, 10) || 5;
+  let timeout = parseInt(settingsData.autoProxyTimeout, 10) || 5;
   timeout = Math.min(30, Math.max(2, timeout));
-  if (timeoutInput) timeoutInput.value = String(timeout);
+  settingsData.autoProxyTimeout = timeout;
 
   chrome.storage.local.set({
     extensionEnabled: settingsData.extensionEnabled,
@@ -724,6 +755,8 @@ function saveSettingsData() {
   data.autoProxyEnabled = settingsData.autoProxyEnabled;
   data.killSwitchEnabled = settingsData.killSwitchEnabled;
   updateKillSwitchWarning();
+  updateTimeoutControls();
+  updateSettingsSummary();
   renderOverview();
   updateConnectionBar();
 }
@@ -749,6 +782,7 @@ function initSettingsPage() {
           settingsData[key] = !settingsData[key];
           sw.classList.toggle('on', settingsData[key]);
           sw.setAttribute('aria-checked', settingsData[key] ? 'true' : 'false');
+          if (key === 'autoProxyTimeoutEnabled') updateTimeoutControls();
           saveSettingsData();
         };
       });
@@ -756,11 +790,17 @@ function initSettingsPage() {
       const timeoutInput = $('dashTimeoutInput');
       if (timeoutInput) {
         timeoutInput.value = String(settingsData.autoProxyTimeout);
+        timeoutInput.oninput = () => {
+          settingsData.autoProxyTimeout = Math.min(30, Math.max(2, parseInt(timeoutInput.value, 10) || 5));
+          updateTimeoutControls();
+        };
         timeoutInput.onchange = saveSettingsData;
       }
 
       $('dashAboutVersion').textContent = chrome.runtime.getManifest().version;
+      updateTimeoutControls();
       updateKillSwitchWarning();
+      updateSettingsSummary();
     }
   );
 }
@@ -840,6 +880,18 @@ $('dashImportBtn').addEventListener('click', () => {
     reader.readAsText(file);
   };
   fileInput.click();
+});
+
+$('dashResetStatsBtn').addEventListener('click', () => {
+  if (!confirm('Сбросить статистику запросов и топ доменов?')) return;
+  chrome.runtime.sendMessage({ action: 'resetStats' }, () => {
+    if (chrome.runtime.lastError) {
+      showToast('Не удалось сбросить статистику', 'error');
+      return;
+    }
+    showToast('Статистика сброшена', 'success');
+    loadData();
+  });
 });
 
 // ============= ЖИВОЕ ОБНОВЛЕНИЕ =============

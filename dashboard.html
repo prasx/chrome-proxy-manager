@@ -214,9 +214,28 @@
       <h1 class="page-title">Настройки</h1>
       <p class="page-subtitle">Управляйте поведением Proxy Manager</p>
 
+      <div class="settings-summary" aria-label="Текущее состояние">
+        <div class="settings-summary__item">
+          <span class="settings-summary__label">Прокси</span>
+          <span class="settings-summary__value" id="settingsProxyState">—</span>
+        </div>
+        <div class="settings-summary__item">
+          <span class="settings-summary__label">Сервер</span>
+          <span class="settings-summary__value" id="settingsServerState">—</span>
+        </div>
+        <div class="settings-summary__item">
+          <span class="settings-summary__label">Режим</span>
+          <span class="settings-summary__value" id="settingsModeState">—</span>
+        </div>
+        <div class="settings-summary__item">
+          <span class="settings-summary__label">Правила</span>
+          <span class="settings-summary__value" id="settingsRulesState">0</span>
+        </div>
+      </div>
+
       <div class="settings-section">
         <div class="settings-section-title">Основные</div>
-        <div class="settings-section-desc">Поведение расширения при запуске и в фоне</div>
+        <div class="settings-section-desc">Как расширение ведёт себя в фоне и при ошибках загрузки</div>
         <div class="field-group">
           <div class="field-row">
             <div class="field-info">
@@ -235,16 +254,19 @@
           <div class="field-row">
             <div class="field-info">
               <div class="field-label">Таймаут загрузки</div>
-              <div class="field-desc">Если основная страница не открылась за указанное время — её домен добавляется в прокси</div>
+              <div class="field-desc">Если основная страница не открылась за указанное время, её домен добавляется в прокси</div>
             </div>
             <button class="toggle-switch" type="button" role="switch" aria-label="Авто-прокси по таймауту" data-key="autoProxyTimeoutEnabled"></button>
           </div>
-          <div class="field-row">
+          <div class="field-row" id="timeoutRow">
             <div class="field-info">
-              <div class="field-label">Задержка таймаута (сек)</div>
-              <div class="field-desc">Время ожидания перед добавлением в прокси (от 2 до 30 секунд)</div>
+              <div class="field-label">Задержка таймаута</div>
+              <div class="field-desc">Время ожидания перед добавлением в прокси</div>
             </div>
-            <input type="number" class="input-s" id="dashTimeoutInput" min="2" max="30" step="1" aria-label="Задержка таймаута в секундах" style="width:80px;text-align:center;" />
+            <div class="range-control">
+              <input type="range" id="dashTimeoutInput" min="2" max="30" step="1" aria-label="Задержка таймаута в секундах" />
+              <output class="range-value" id="dashTimeoutValue" for="dashTimeoutInput">5 с</output>
+            </div>
           </div>
           <div class="field-row">
             <div class="field-info">
@@ -258,7 +280,7 @@
 
       <div class="settings-section">
         <div class="settings-section-title">Безопасность</div>
-        <div class="settings-section-desc">Защита данных</div>
+        <div class="settings-section-desc">Защита от утечек и блокировка трафика при сбое прокси</div>
         <div class="field-group">
           <div class="field-row">
             <div class="field-info">
@@ -280,7 +302,7 @@
 
       <div class="settings-section">
         <div class="settings-section-title">Данные</div>
-        <div class="settings-section-desc">Экспорт, импорт и сброс</div>
+        <div class="settings-section-desc">Экспорт, импорт и управление статистикой</div>
         <div class="field-group">
           <div class="field-row">
             <div class="field-info">
@@ -298,6 +320,7 @@
         <div class="settings-actions">
           <button class="btn btn-secondary" id="dashExportBtn" type="button">Экспорт настроек</button>
           <button class="btn btn-secondary" id="dashImportBtn" type="button">Импорт настроек</button>
+          <button class="btn btn-danger" id="dashResetStatsBtn" type="button">Сбросить статистику</button>
         </div>
       </div>
     </div>
