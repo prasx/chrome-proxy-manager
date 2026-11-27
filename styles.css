@@ -2279,3 +2279,74 @@ body.popup-body {
 
 .section-actions { display: flex; align-items: center; gap: 16px; }
 .server-test__detail { margin-top: 2px; }
+
+/* ============= SERVER ROLE ============= */
+.server-role-cell { min-width: 164px; }
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 500 9px/1.2 var(--font-body);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.role-pill.is-primary {
+  border-color: color-mix(in oklab, var(--success), transparent 55%);
+  background: color-mix(in oklab, var(--success), transparent 90%);
+  color: var(--success-strong);
+}
+.role-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+}
+.role-select {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  padding: 2px 5px;
+  color: var(--accent);
+  font: 500 9px/1.2 var(--font-body);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.role-select:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
+.role-move {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 10px/1 var(--font-body);
+  cursor: pointer;
+}
+.role-move:hover:not(:disabled) { color: var(--fg); border-color: var(--muted); }
+.role-move:disabled { opacity: 0.3; cursor: default; }
+.server-hint {
+  margin-top: 10px;
+  font: 400 11px/1.4 var(--font-body);
+  color: var(--muted);
+}
+.role-move svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+  margin: 0 auto;
+}

@@ -452,7 +452,7 @@ function showBadge(text, bgColor) {
  * Запоминает причину красного «!» рядом с иконкой и делает её
  * видимой в попапе, подсказке иконки и логах.
  */
-function setIssue(kind, message, proxyId) {
+function setIssue(kind, message, proxyId, detail) {
   const text = String(message || 'Ошибка прокси').slice(0, 300);
   const issueKey = `${kind}:${text}`;
 
@@ -464,6 +464,7 @@ function setIssue(kind, message, proxyId) {
     at: Date.now(),
     kind,
     message: text,
+    detail: detail ? String(detail).slice(0, 300) : '',
     proxyId: proxyId ? String(proxyId) : null
   };
   chrome.storage.local.set({ lastIssue });
@@ -473,12 +474,12 @@ function setIssue(kind, message, proxyId) {
 
 function proxyErrorText(message) {
   const raw = String(message || '');
-  if (/ERR_PROXY_CONNECTION_FAILED/.test(raw)) return 'Не удалось подключиться к прокси';
-  if (/ERR_TUNNEL_CONNECTION_FAILED/.test(raw)) return 'Прокси не установил туннель';
-  if (/ERR_SOCKS_CONNECTION/.test(raw)) return 'SOCKS-прокси не отвечает';
-  if (/ERR_PROXY_AUTH/.test(raw)) return 'Прокси требует авторизацию';
-  if (/ERR_PROXY_CERTIFICATE/.test(raw)) return 'Ошибка сертификата прокси';
-  return 'Ошибка прокси';
+  if (/ERR_PROXY_CONNECTION_FAILED/.test(raw)) return 'не принимает соединение';
+  if (/ERR_TUNNEL_CONNECTION_FAILED/.test(raw)) return 'не установил туннель';
+  if (/ERR_SOCKS_CONNECTION/.test(raw)) return 'не отвечает';
+  if (/ERR_PROXY_AUTH/.test(raw)) return 'требует авторизацию';
+  if (/ERR_PROXY_CERTIFICATE/.test(raw)) return 'отдаёт ошибку сертификата';
+  return 'недоступен';
 }
 
 // ===================== ОЧЕРЕДЬ ЗАПИСИ В STORAGE =====================
@@ -583,7 +584,11 @@ function recordProxyFailure(message, options) {
   lastProxyErrorLog = { message: rawMessage, at: now };
   chrome.storage.local.set({ lastProxyError });
   logRoute('ERROR', 'Proxy error', displayMessage);
-  setIssue('proxy', `${proxyErrorText(rawMessage)}: ${displayMessage}`, activeProxy ? activeProxy.id : null);
+  const label = activeProxy ? proxyLabel(activeProxy) : 'Прокси';
+  setIssue('proxy',
+    `${label} ${proxyErrorText(rawMessage)}. Проверьте адрес и порт или выберите другой сервер.`,
+    activeProxy ? activeProxy.id : null,
+    displayMessage);
 
   if (opts.rotate === false || !activeProxy) return;
   if (!isProxyConfigured(activeProxy)) return;
@@ -617,7 +622,10 @@ function switchToFallbackProxy(reason) {
   logRoute('AUTO', 'Proxy fallback',
     `${proxyLabel(proxies[currentIndex])} → ${proxyLabel(next)} (${reason})`);
 
-  chrome.storage.local.set({ activeProxyId: next.id }, () => {
+  chrome.storage.local.set({
+    activeProxyId: next.id,
+    proxies: [next, ...cachedConfig.proxies.filter(p => !sameProxyId(p.id, next.id))]
+  }, () => {
     setIssue('fallback',
       `Прокси ${proxyLabel(proxies[currentIndex])} не отвечает. Активный: ${proxyLabel(next)}`);
     if (Date.now() - lastFallbackNotifyAt > 5 * 60 * 1000) {
@@ -1233,7 +1241,10 @@ async function switchToHealthyProxy(current) {
 
     lastAutoSwitchAt = Date.now();
     await new Promise(resolve => {
-      chrome.storage.local.set({ activeProxyId: candidate.id }, resolve);
+      chrome.storage.local.set({
+        activeProxyId: candidate.id,
+        proxies: [candidate, ...cachedConfig.proxies.filter(p => !sameProxyId(p.id, candidate.id))]
+      }, resolve);
     });
 
     logRoute('AUTO', 'Proxy health',

@@ -262,7 +262,8 @@ test('proxy error stores a visible issue reason and can be acknowledged', async 
 
   const status = await sendMessage({ action: 'getProxyStatus' });
   assert.equal(status.lastIssue.kind, 'proxy');
-  assert.match(status.lastIssue.message, /ERR_PROXY_CONNECTION_FAILED/);
+  assert.match(status.lastIssue.message, /не принимает соединение/);
+  assert.match(status.lastIssue.detail, /ERR_PROXY_CONNECTION_FAILED/);
 
   const acknowledged = await sendMessage({ action: 'acknowledgeIssue' });
   assert.equal(acknowledged.success, true);

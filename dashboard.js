@@ -243,10 +243,11 @@ function renderOverview() {
   $('dashMode').textContent = data.autoProxyEnabled ? 'Авто' : 'Список';
 
   const container = $('overviewServers');
+  const ordered = orderedProxies();
   if (data.proxies.length === 0) {
     container.innerHTML = '<div class="empty-state">Нет серверов. Добавьте первый прокси, чтобы включить маршрутизацию.</div>';
   } else {
-    container.innerHTML = data.proxies.map(proxy => {
+    container.innerHTML = ordered.map(proxy => {
       const isActive = sameProxyId(proxy.id, data.activeProxyId);
       const configured = isProxyConfigured(proxy);
       const reserve = configured && !isActive;
@@ -256,7 +257,7 @@ function renderOverview() {
           <div class="overview-server__name">${escapeHtml(proxy.name || 'Без имени')}</div>
           <div class="overview-server__meta">${escapeHtml(proxy.host || '—')}:${escapeHtml(proxy.port || '—')}, ${escapeHtml(displayProxyType(proxy.type))}${configured ? '' : ', не настроен'}</div>
         </div>
-        ${isActive ? '<span class="active-pill">Активен</span>' : reserve ? '<span class="reserve-pill">Резерв</span>' : ''}
+        ${isActive ? '<span class="active-pill">Основной</span>' : reserve ? '<span class="reserve-pill">Дополнительный</span>' : ''}
       </div>`;
     }).join('');
   }
@@ -341,9 +342,18 @@ function proxyDot(proxyId, isActive) {
     return '<span class="server-dot error" aria-hidden="true" title="Недоступен"></span>';
   }
   if (isActive) {
-    return '<span class="server-dot online" aria-hidden="true" title="Активный прокси"></span>';
+    return '<span class="server-dot online" aria-hidden="true" title="Основной прокси"></span>';
   }
-  return '<span class="server-dot offline" aria-hidden="true" title="Резервный прокси"></span>';
+  return '<span class="server-dot offline" aria-hidden="true" title="Дополнительный прокси"></span>';
+}
+
+function orderedProxies() {
+  const active = data.proxies.find(proxy => sameProxyId(proxy.id, data.activeProxyId));
+  if (!active) return data.proxies.slice();
+  return [
+    active,
+    ...data.proxies.filter(proxy => !sameProxyId(proxy.id, active.id))
+  ];
 }
 
 function renderServers() {
@@ -351,11 +361,12 @@ function renderServers() {
   if (!tbody) return;
 
   if (data.proxies.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="logs-empty">Нет серверов</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="logs-empty">Нет серверов</td></tr>';
     return;
   }
 
-  tbody.innerHTML = data.proxies.map(proxy => {
+  const ordered = orderedProxies();
+  tbody.innerHTML = ordered.map((proxy, index) => {
     const id = String(proxy.id);
     const isActive = sameProxyId(proxy.id, data.activeProxyId);
     const hostValid = !proxy.host || String(proxy.host).trim() === '' || isValidProxyHost(proxy.host);
@@ -364,6 +375,11 @@ function renderServers() {
     const type = normalizeProxyType(proxy.type) || 'SOCKS5';
     const typeValue = type === 'PROXY' ? 'PROXY' : type;
     const testResult = testResults.get(id) || proxyHealthTestResult(id);
+    const roleControls = isActive ? '' : `<div class="role-controls">
+      <button class="role-select" type="button" data-id="${escapeHtml(id)}" data-action="select" title="Сделать основным">Сделать основным</button>
+      <button class="role-move" type="button" data-id="${escapeHtml(id)}" data-action="up" title="Выше в резервной цепочке" aria-label="Поднять в резервной цепочке" ${index <= 1 ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg></button>
+      <button class="role-move" type="button" data-id="${escapeHtml(id)}" data-action="down" title="Ниже в резервной цепочке" aria-label="Опустить в резервной цепочке" ${index >= ordered.length - 1 ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>`;
 
     return `<tr data-proxy-id="${escapeHtml(id)}">
       <td>
@@ -371,6 +387,10 @@ function renderServers() {
           ${proxyDot(id, isActive)}
           <input type="text" class="proxy-item__field" value="${escapeHtml(proxy.name || '')}" data-id="${escapeHtml(id)}" data-field="name" placeholder="Название" aria-label="Название сервера" style="max-width:140px;">
         </span>
+      </td>
+      <td class="server-role-cell">
+        <span class="role-pill ${isActive ? 'is-primary' : ''}">${isActive ? 'Основной' : 'Дополнительный'}</span>
+        ${roleControls}
       </td>
       <td><input type="text" class="proxy-item__field ${hostValid ? '' : 'invalid'}" value="${escapeHtml(proxy.host || '')}" data-id="${escapeHtml(id)}" data-field="host" placeholder="IP или hostname" aria-label="Хост прокси" aria-invalid="${hostValid ? 'false' : 'true'}"></td>
       <td><input type="number" class="proxy-item__field ${portValid ? '' : 'invalid'}" value="${escapeHtml(proxy.port || '')}" data-id="${escapeHtml(id)}" data-field="port" placeholder="Порт" aria-label="Порт прокси" aria-invalid="${portValid ? 'false' : 'true'}" min="1" max="65535" style="max-width:82px;"></td>
@@ -392,9 +412,6 @@ function renderServers() {
         <div class="server-actions">
           <button class="server-btn" type="button" title="Проверить прокси" aria-label="Проверить ${escapeHtml(proxy.name || proxy.host || 'прокси')}" data-id="${escapeHtml(id)}" data-action="test">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </button>
-          <button class="server-btn ${isActive ? 'connected' : ''}" type="button" title="${isActive ? 'Активен' : 'Выбрать активным'}" aria-label="${isActive ? 'Активный прокси' : 'Выбрать активным'}" data-id="${escapeHtml(id)}" data-action="select">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </button>
           <button class="server-btn is-danger" type="button" title="Удалить" aria-label="Удалить ${escapeHtml(proxy.name || proxy.host || 'прокси')}" data-id="${escapeHtml(id)}" data-action="delete">
             <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -473,6 +490,18 @@ async function runAllServerTests() {
   showToast('Все серверы проверены', 'success');
 }
 
+function moveProxy(proxyId, direction) {
+  const ordered = orderedProxies();
+  const index = ordered.findIndex(proxy => sameProxyId(proxy.id, proxyId));
+  if (index <= 0) return;
+
+  const target = direction === 'up' ? index - 1 : index + 1;
+  if (target <= 0 || target >= ordered.length) return;
+
+  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+  chrome.storage.local.set({ proxies: ordered }, () => loadData());
+}
+
 function setupServerHandlers() {
   const tbody = $('serversTableBody');
   if (!tbody || tbody.dataset.handlersReady === '1') return;
@@ -530,13 +559,24 @@ function setupServerHandlers() {
   });
 
   tbody.addEventListener('click', (event) => {
-    const button = event.target.closest('.server-btn');
-    if (!button) return;
+    const button = event.target.closest('[data-action]');
+    if (!button || !tbody.contains(button)) return;
     const id = parseProxyId(button.dataset.id);
     const action = button.dataset.action;
 
+    if (action === 'up' || action === 'down') {
+      moveProxy(id, action);
+      return;
+    }
+
     if (action === 'select') {
-      chrome.storage.local.set({ activeProxyId: id }, () => {
+      const selected = findProxyById(data.proxies, id);
+      if (!selected) return;
+      const ordered = [
+        selected,
+        ...data.proxies.filter(proxy => !sameProxyId(proxy.id, id))
+      ];
+      chrome.storage.local.set({ activeProxyId: id, proxies: ordered }, () => {
         loadData(() => probeHealth());
       });
       return;
@@ -557,6 +597,9 @@ function setupServerHandlers() {
         if (sameProxyId(result.activeProxyId, id)) {
           const next = proxies.filter(isProxyConfigured)[0] || proxies[0];
           updates.activeProxyId = next ? next.id : null;
+          if (next) {
+            updates.proxies = [next, ...proxies.filter(p => !sameProxyId(p.id, next.id))];
+          }
         }
         chrome.storage.local.set(updates, () => loadData());
       });

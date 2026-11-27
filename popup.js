@@ -31,10 +31,10 @@ const POWER_STATES = {
 };
 
 const ISSUE_TITLES = {
-  proxy: 'Красный значок: ошибка прокси',
-  fallback: 'Красный значок: переключение прокси',
-  auth: 'Красный значок: нужна авторизация',
-  config: 'Красный значок: настройки не применились'
+  proxy: 'Прокси не отвечает',
+  fallback: 'Прокси переключён',
+  auth: 'Нужна авторизация',
+  config: 'Настройки не применились'
 };
 
 // ============= ДАННЫЕ =============
@@ -104,7 +104,7 @@ function renderIssue() {
     return;
   }
 
-  setText('issueTitle', ISSUE_TITLES[issue.kind] || 'Красный значок: ошибка');
+  setText('issueTitle', ISSUE_TITLES[issue.kind] || 'Ошибка прокси');
   setText('issueText', issue.message);
   banner.hidden = false;
 }
